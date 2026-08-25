@@ -300,24 +300,24 @@
         <div class="section">
           <div class="section-head">
             <span class="step">3</span>
-            <div><h3>Ambiance visuelle</h3><p>Choisis un résultat, pas une technologie. NyXia offre une Qualité Premium.</p></div>
+            <div><h3>Ambiance visuelle</h3><p>Choisis un résultat, pas une technologie. NyXia sélectionne le bon moteur.</p></div>
           </div>
           <div class="quality-grid" id="quality-grid">
             <label class="quality-card" data-mode="fast">
               <input type="radio" name="quality" value="fast">
-              <span class="quality-box"><strong>⚡ Rapide</strong><span>direction visuelle rapide.</span><em>Rapide</em></span>
+              <span class="quality-box"><strong>⚡ Rapide</strong><span>Direction visuelle rapide.</span><em>Qualité Premium NyXia</em></span>
             </label>
             <label class="quality-card" data-mode="balanced">
               <input type="radio" name="quality" value="balanced" checked>
-              <span class="quality-box"><strong>✦ Équilibrée</strong><span>excellent rendu de ton idée.</span><em>Normal</em></span>
+              <span class="quality-box"><strong>✦ Normal</strong><span>Excellent rendu de ton idée.</span><em>Qualité Premium NyXia</em></span>
             </label>
             <label class="quality-card" data-mode="design">
               <input type="radio" name="quality" value="design">
-              <span class="quality-box"><strong>◆ Lent </strong><span>Composition plus raffinée.</span><em>Plus lent</em></span>
+              <span class="quality-box"><strong>◆ Lent</strong><span>Composition plus raffinée.</span><em>Qualité Premium NyXia</em></span>
             </label>
             <label class="quality-card" data-mode="photo">
               <input type="radio" name="quality" value="photo">
-              <span class="quality-box"><strong>📷 Photo réaliste</strong><span>Crédible et cinématographique.</span><em>Réalisme</em></span>
+              <span class="quality-box"><strong>📷 Photo réaliste</strong><span>Rendu crédible et cinématographique.</span><em>Qualité Premium NyXia</em></span>
             </label>
           </div>
 
@@ -483,10 +483,10 @@
       if (count) {
         byId('provider-pill').classList.add('ready')
         byId('provider-pill').textContent = count + ' style' + (count > 1 ? 's' : '') + ' de génération disponible' + (count > 1 ? 's' : '')
-        setGenerationState('Génération IA prête. Tu peux aussi importer ta propre image.', false)
+        setGenerationState('Création NyXia prête. Tu peux aussi importer ta propre image.', false)
       } else {
         byId('provider-pill').textContent = 'Importation et composition locales'
-        setGenerationState('Ajoute une clé Ideogram, Recraft ou FLUX au Worker pour activer la génération. Les imports et exports fonctionnent déjà.', false)
+        setGenerationState('La création NyXia n’est pas encore activée. Les imports et exports fonctionnent déjà.', false)
       }
     } catch (error) {
       byId('generate-art').disabled = true
@@ -906,9 +906,9 @@
   }
 
   function generationComplete(providerLabel) {
-    setGenerationState('Illustration créée' + (providerLabel ? ' avec ' + providerLabel : '') + '. Elle est prête à être composée.', false)
+    setGenerationState('Illustration créée par NyXia', false)
     byId('provider-pill').classList.add('ready')
-    byId('provider-pill').textContent = 'Illustration active' + (providerLabel ? ' · ' + providerLabel : '')
+    byId('provider-pill').textContent = 'Illustration NyXia active'
     showToast('L’illustration est prête ✦')
   }
 
