@@ -236,6 +236,43 @@
             <textarea id="back-text" maxlength="1800">Et si ton histoire n’attendait qu’un cadre clair pour enfin prendre vie? Découvre une méthode simple pour transformer tes idées en pages, tes scènes en émotions et ton projet en un véritable livre.</textarea>
             <div class="hint"><span id="back-count">0</span>/1800 caractères · Tu pourras encore le modifier avant l’export.</div>
           </div>
+          <div class="field" style="margin-top:4px; padding-top:16px; border-top:1px solid var(--line)">
+            <label class="check" style="margin-bottom:0"><input id="show-author-block" type="checkbox"> <span>Afficher un bloc auteur au dos (photo, nom, courte biographie). Placé automatiquement au-dessus du code-barres.</span></label>
+          </div>
+          <div id="author-block-fields">
+            <div class="field">
+              <label for="author-block-name">Nom ou nom de plume <span class="optional">— sinon, le nom d’auteur est utilisé</span></label>
+              <input id="author-block-name" type="text" maxlength="80" placeholder="Ton nom de plume" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="author-bio">Courte biographie <span class="optional">— facultatif</span></label>
+              <textarea id="author-bio" maxlength="400" placeholder="Quelques phrases sur toi : ton univers, ton parcours, ce qui inspire ton écriture..."></textarea>
+              <div class="hint"><span id="bio-count">0</span>/400 caractères</div>
+            </div>
+            <div class="field">
+              <span class="label">Forme de la photo</span>
+              <div class="format-toggle" style="grid-template-columns:1fr 1fr 1fr">
+                <label class="choice">
+                  <input type="radio" name="author-shape" value="round" checked>
+                  <span class="choice-box">⬤ Ronde</span>
+                </label>
+                <label class="choice">
+                  <input type="radio" name="author-shape" value="square">
+                  <span class="choice-box">◼ Carrée</span>
+                </label>
+                <label class="choice">
+                  <input type="radio" name="author-shape" value="none">
+                  <span class="choice-box">✕ Sans photo</span>
+                </label>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-soft" id="author-photo-btn">⬆ Importer une photo d’auteur</button>
+              <button type="button" class="btn btn-dark" id="author-photo-remove">Retirer la photo</button>
+              <input class="file-input" id="author-photo-file" type="file" accept="image/png,image/jpeg,image/webp">
+            </div>
+            <div class="hint" id="author-photo-state">Aucune photo importée pour l’instant.</div>
+          </div>
         </div>
 
         <div class="section">
@@ -416,6 +453,8 @@
   var providerModes = { fast: false, balanced: false, design: false, photo: false }
   var artworkImage = null
   var artworkObjectUrl = ''
+  var authorImage = null
+  var authorObjectUrl = ''
   var ambianceIndex = 0
   var renderTimer = null
   var saveTimer = null
@@ -560,8 +599,19 @@
       showGuides: byId('show-guides').checked,
       format: currentFormat(),
       quality: currentQuality(),
+      authorBlock: {
+        show: byId('show-author-block').checked,
+        shape: currentAuthorShape(),
+        name: byId('author-block-name').value.trim(),
+        bio: byId('author-bio').value.trim()
+      },
       calculation: c
     }
+  }
+
+  function currentAuthorShape() {
+    var selected = document.querySelector('input[name="author-shape"]:checked')
+    return selected ? selected.value : 'round'
   }
 
   function formatNumber(value, decimals) {
@@ -769,12 +819,28 @@
     ctx.font = '700 ' + Math.round(backW * .045) + 'px ' + fontFamily(s.fontStyle)
     ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = s.textColor
     ctx.fillText(s.title, backX + safe, coverY + safe + dpi * .12, backW - safe * 2)
-    drawParagraph(ctx, s.backText || 'Ajoute ici le texte de ta quatrième de couverture.', backX + safe, coverY + safe + dpi * .48, backW - safe * 2, backW * .029, 1.45, 19, 'rgba(255,255,255,.93)')
 
     var barcodeW = Math.min(2 * dpi, backW * .37)
     var barcodeH = Math.min(1.2 * dpi, coverH * .17)
     var barcodeX = backX + backW - safe - barcodeW
     var barcodeY = coverY + coverH - safe - barcodeH
+
+    var resumeTop = coverY + safe + dpi * .48
+    var resumeFont = backW * .029
+    var resumeMaxLines = 19
+    var ab = s.authorBlock
+    var abGeom = null, authorTop = 0
+    if (ab.show) {
+      abGeom = measureAuthorBlock(ctx, ab, s, backW, coverH, dpi, safe)
+      var authorBottom = barcodeY - dpi * .14
+      authorTop = authorBottom - abGeom.height
+      var avail = authorTop - dpi * .12 - resumeTop
+      resumeMaxLines = Math.max(1, Math.min(19, Math.floor(avail / (resumeFont * 1.45))))
+    }
+    drawParagraph(ctx, s.backText || 'Ajoute ici le texte de ta quatrième de couverture.', backX + safe, resumeTop, backW - safe * 2, resumeFont, 1.45, resumeMaxLines, 'rgba(255,255,255,.93)')
+
+    if (ab.show) drawAuthorBlock(ctx, abGeom, backX, backW, safe, authorTop, ab, s, dpi)
+
     ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fillRect(barcodeX, barcodeY, barcodeW, barcodeH)
     ctx.strokeStyle = 'rgba(20,20,25,.28)'; ctx.lineWidth = Math.max(1, dpi * .006); ctx.strokeRect(barcodeX, barcodeY, barcodeW, barcodeH)
     ctx.fillStyle = '#292631'; ctx.font = '500 ' + Math.max(8, Math.round(dpi * .045)) + 'px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
@@ -809,6 +875,78 @@
     ctx.restore()
   }
 
+  function measureAuthorBlock(ctx, ab, s, backW, coverH, dpi, safe) {
+    var hasPhoto = ab.shape !== 'none'
+    var photoS = hasPhoto ? Math.min(backW * .24, coverH * .16) : 0
+    var gap = hasPhoto ? dpi * .09 : 0
+    var innerW = backW - safe * 2
+    var textX = photoS + gap
+    var textW = Math.max(dpi * .5, innerW - textX)
+    var nameFont = Math.max(9, backW * .036)
+    var bioFont = Math.max(8, backW * .023)
+    var nameH = nameFont * 1.2
+    ctx.font = '400 ' + Math.round(bioFont) + 'px Outfit, Arial, sans-serif'
+    var bioLines = ab.bio ? wrapLines(ctx, ab.bio, textW, 5) : []
+    var bioGap = bioLines.length ? dpi * .03 : 0
+    var bioH = bioLines.length * bioFont * 1.4
+    var textH = nameH + bioGap + bioH
+    return {
+      height: Math.max(photoS, textH), hasPhoto: hasPhoto, photoS: photoS, gap: gap,
+      textX: textX, textW: textW, nameFont: nameFont, bioFont: bioFont, nameH: nameH,
+      bioLines: bioLines, bioGap: bioGap
+    }
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2)
+    ctx.beginPath()
+    ctx.moveTo(x + r, y)
+    ctx.arcTo(x + w, y, x + w, y + h, r)
+    ctx.arcTo(x + w, y + h, x, y + h, r)
+    ctx.arcTo(x, y + h, x, y, r)
+    ctx.arcTo(x, y, x + w, y, r)
+    ctx.closePath()
+  }
+
+  function ellipsizeText(ctx, text, maxWidth) {
+    text = String(text || '')
+    if (ctx.measureText(text).width <= maxWidth) return text
+    while (text.length > 1 && ctx.measureText(text + '…').width > maxWidth) text = text.slice(0, -1)
+    return text.trim() + '…'
+  }
+
+  function drawAuthorBlock(ctx, g, backX, backW, safe, top, ab, s, dpi) {
+    var x = backX + safe
+    if (g.hasPhoto) {
+      var px = x, py = top
+      ctx.save()
+      if (ab.shape === 'round') { ctx.beginPath(); ctx.arc(px + g.photoS / 2, py + g.photoS / 2, g.photoS / 2, 0, Math.PI * 2); ctx.closePath(); ctx.clip() }
+      else { roundRectPath(ctx, px, py, g.photoS, g.photoS, dpi * .03); ctx.clip() }
+      if (authorImage) coverDrawImage(ctx, authorImage, px, py, g.photoS, g.photoS)
+      else {
+        ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(px, py, g.photoS, g.photoS)
+        ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.font = '500 ' + Math.max(7, Math.round(g.photoS * .16)) + 'px Outfit, Arial, sans-serif'
+        ctx.fillText('PHOTO', px + g.photoS / 2, py + g.photoS / 2)
+      }
+      ctx.restore()
+      ctx.save()
+      ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = Math.max(1, dpi * .004)
+      if (ab.shape === 'round') { ctx.beginPath(); ctx.arc(px + g.photoS / 2, py + g.photoS / 2, g.photoS / 2, 0, Math.PI * 2); ctx.stroke() }
+      else { roundRectPath(ctx, px, py, g.photoS, g.photoS, dpi * .03); ctx.stroke() }
+      ctx.restore()
+    }
+    var tx = x + g.textX
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+    ctx.font = '700 ' + Math.round(g.nameFont) + 'px Outfit, Arial, sans-serif'; ctx.fillStyle = s.accentColor
+    ctx.fillText(ellipsizeText(ctx, ab.name || s.author, g.textW), tx, top)
+    if (g.bioLines.length) {
+      ctx.font = '400 ' + Math.round(g.bioFont) + 'px Outfit, Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.86)'
+      var by = top + g.nameH + g.bioGap
+      g.bioLines.forEach(function(line, i) { ctx.fillText(line, tx, by + i * g.bioFont * 1.4) })
+    }
+  }
+
   function scheduleRender() {
     clearTimeout(renderTimer)
     renderTimer = setTimeout(renderPreviews, 80)
@@ -822,6 +960,7 @@
     var previewDpi = Math.min(86, Math.max(42, 1000 / c.width))
     drawWrap(byId('wrap-preview'), previewDpi, getState().showGuides)
     byId('back-count').textContent = byId('back-text').value.length
+    byId('bio-count').textContent = byId('author-bio').value.length
   }
 
   function buildSuggestedPrompt() {
@@ -927,6 +1066,52 @@
       showToast('Image importée avec succès.')
     } catch (error) { showToast(error.message, true) }
     event.target.value = ''
+  }
+
+  function chooseAuthorPhoto() { byId('author-photo-file').click() }
+
+  async function handleAuthorPhoto(event) {
+    var file = event.target.files && event.target.files[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) return showToast('Choisis une image PNG, JPG ou WebP.', true)
+    try {
+      await loadAuthorBlob(file)
+      byId('author-photo-state').textContent = 'Photo importée · ' + file.name
+      showToast('Photo d’auteur importée.')
+    } catch (error) { showToast(error.message, true) }
+    event.target.value = ''
+  }
+
+  async function loadAuthorBlob(blob) {
+    if (blob.size > MAX_IMAGE_BYTES) throw new Error('L’image dépasse 15 Mo. Choisis un fichier plus léger.')
+    if (authorObjectUrl) URL.revokeObjectURL(authorObjectUrl)
+    authorObjectUrl = URL.createObjectURL(blob)
+    authorImage = await new Promise(function(resolve, reject) {
+      var image = new Image()
+      image.onload = function() { resolve(image) }
+      image.onerror = function() { reject(new Error('Impossible de lire cette image.')) }
+      image.src = authorObjectUrl
+    })
+    if (!byId('show-author-block').checked) byId('show-author-block').checked = true
+    if (currentAuthorShape() === 'none') { var round = document.querySelector('input[name="author-shape"][value="round"]'); if (round) round.checked = true }
+    syncAuthorOptions()
+    renderPreviews()
+  }
+
+  function removeAuthorPhoto() {
+    if (authorObjectUrl) URL.revokeObjectURL(authorObjectUrl)
+    authorObjectUrl = ''; authorImage = null
+    byId('author-photo-state').textContent = 'Aucune photo importée pour l’instant.'
+    syncAuthorOptions()
+    renderPreviews()
+  }
+
+  function syncAuthorOptions() {
+    var show = byId('show-author-block').checked
+    byId('author-block-fields').style.display = show ? '' : 'none'
+    var noPhoto = currentAuthorShape() === 'none'
+    byId('author-photo-btn').disabled = noPhoto
+    byId('author-photo-remove').disabled = noPhoto || !authorImage
   }
 
   function setGenerationState(message, loading) {
@@ -1079,9 +1264,10 @@
   }
 
   function serializableDraft() {
-    var ids = ['book-title','book-subtitle','book-author','book-genre','back-text','trim-size','page-count','interior-type','paper-type','art-prompt','font-style','text-color','accent-color']
+    var ids = ['book-title','book-subtitle','book-author','book-genre','back-text','trim-size','page-count','interior-type','paper-type','art-prompt','font-style','text-color','accent-color','author-block-name','author-bio']
     var values = {}; ids.forEach(function(id) { values[id] = byId(id).value })
     values.format = currentFormat(); values.quality = currentQuality(); values.spine = byId('show-spine-text').checked; values.guides = byId('show-guides').checked; values.ambiance = ambianceIndex
+    values.authorShow = byId('show-author-block').checked; values.authorShape = currentAuthorShape()
     return values
   }
 
@@ -1102,6 +1288,8 @@
       Object.keys(d).forEach(function(id) { if (byId(id) && typeof d[id] === 'string') byId(id).value = d[id] })
       var f = document.querySelector('input[name="book-format"][value="' + d.format + '"]'); if (f) f.checked = true
       var q = document.querySelector('input[name="quality"][value="' + d.quality + '"]'); if (q) q.checked = true
+      var as = document.querySelector('input[name="author-shape"][value="' + d.authorShape + '"]'); if (as) as.checked = true
+      if (typeof d.authorShow === 'boolean') byId('show-author-block').checked = d.authorShow
       if (typeof d.spine === 'boolean') byId('show-spine-text').checked = d.spine
       if (typeof d.guides === 'boolean') byId('show-guides').checked = d.guides
       if (Number.isFinite(Number(d.ambiance))) ambianceIndex = Number(d.ambiance)
@@ -1119,11 +1307,13 @@
       el.addEventListener('input', function() {
         if (el.id === 'interior-type') syncPaperOptions()
         if (el.name === 'book-format') syncFormatOptions()
+        if (el.id === 'show-author-block' || el.name === 'author-shape') syncAuthorOptions()
         scheduleRender()
       })
       el.addEventListener('change', function() {
         if (el.id === 'interior-type') syncPaperOptions()
         if (el.name === 'book-format') syncFormatOptions()
+        if (el.id === 'show-author-block' || el.name === 'author-shape') syncAuthorOptions()
         scheduleRender()
       })
     })
@@ -1133,6 +1323,9 @@
     byId('generate-art').addEventListener('click', startGeneration)
     byId('upload-art').addEventListener('click', chooseLocalFile)
     byId('art-file').addEventListener('change', handleLocalFile)
+    byId('author-photo-btn').addEventListener('click', chooseAuthorPhoto)
+    byId('author-photo-remove').addEventListener('click', removeAuthorPhoto)
+    byId('author-photo-file').addEventListener('change', handleAuthorPhoto)
     byId('export-ebook').addEventListener('click', exportEbook)
     byId('export-pdf').addEventListener('click', exportPrintPdf)
     byId('export-png').addEventListener('click', exportPrintPng)
@@ -1145,6 +1338,7 @@
     bindEvents()
     syncPaperOptions()
     syncFormatOptions()
+    syncAuthorOptions()
     if (!byId('art-prompt').value.trim()) byId('art-prompt').value = buildSuggestedPrompt()
     await document.fonts.ready.catch(function(){})
     renderPreviews()
