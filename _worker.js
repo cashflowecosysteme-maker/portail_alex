@@ -1796,6 +1796,283 @@ async function getCoverSession(request, env, explicitToken = '') {
   }
 }
 
+// ───────────── BOÎTE À OUTILS AUTEUR NYXIA ─────────────
+// Les fournisseurs externes restent strictement côté Worker.
+// Le navigateur ne reçoit que des résultats unifiés sous l'identité NyXia.
+
+function authorTokenFromRequest(request, body = {}) {
+  if (body && body.token) return String(body.token);
+  const authorization = request.headers.get('Authorization') || '';
+  const bearer = authorization.match(/^Bearer\s+(.+)$/i);
+  return bearer ? bearer[1].trim() : '';
+}
+
+async function getAuthorSession(request, env, body = {}) {
+  if (!env.CASHFLOW_KV) return null;
+  const token = authorTokenFromRequest(request, body);
+  if (!token) return null;
+  const raw = await env.CASHFLOW_KV.get(`session:${token}`);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (_) { return null; }
+}
+
+async function readAuthorBody(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const session = await getAuthorSession(request, env, body);
+  if (!session) return { errorResponse: json({ error: 'Session expirée.' }, 401) };
+  return { body, session };
+}
+
+function authorClean(value, max = 400) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function authorYear(value) {
+  if (!value) return '';
+  const match = String(value).match(/\d{4}/);
+  return match ? match[0] : '';
+}
+
+function uniqueAuthorResults(items, limit = 12) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items || []) {
+    const key = `${String(item.title || '').toLowerCase()}|${String(item.author || '').toLowerCase()}`;
+    if (!item.title || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+async function searchOpenLibrary(query, fields = '') {
+  const url = new URL('https://openlibrary.org/search.json');
+  url.searchParams.set('q', query);
+  url.searchParams.set('limit', '12');
+  if (fields) url.searchParams.set('fields', fields);
+  const response = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+  if (!response.ok) return [];
+  const data = await response.json();
+  return (data.docs || []).map(item => ({
+    title: item.title,
+    author: (item.author_name || []).slice(0, 2).join(', '),
+    year: item.first_publish_year || authorYear(item.publish_date && item.publish_date[0]),
+    language: (item.language || []).slice(0, 2).join(', '),
+    description: item.first_sentence ? (Array.isArray(item.first_sentence) ? item.first_sentence[0] : item.first_sentence) : '',
+    type: item.subject ? (item.subject || []).slice(0, 2).join(', ') : ''
+  }));
+}
+
+async function searchGoogleBooks(query) {
+  const url = new URL('https://www.googleapis.com/books/v1/volumes');
+  url.searchParams.set('q', query);
+  url.searchParams.set('maxResults', '12');
+  url.searchParams.set('printType', 'books');
+  const response = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+  if (!response.ok) return [];
+  const data = await response.json();
+  return (data.items || []).map(item => {
+    const info = item.volumeInfo || {};
+    return {
+      title: info.title || '',
+      author: (info.authors || []).slice(0, 2).join(', '),
+      year: authorYear(info.publishedDate),
+      language: info.language || '',
+      description: authorClean(info.description || '', 420),
+      type: (info.categories || []).slice(0, 2).join(', ')
+    };
+  });
+}
+
+async function searchGutendex(query) {
+  const url = new URL('https://gutendex.com/books/');
+  url.searchParams.set('search', query);
+  const response = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+  if (!response.ok) return [];
+  const data = await response.json();
+  return (data.results || []).map(item => ({
+    title: item.title || '',
+    author: (item.authors || []).map(a => a.name).slice(0, 2).join(', '),
+    year: item.authors && item.authors[0] && item.authors[0].birth_year ? String(item.authors[0].birth_year) : '',
+    language: (item.languages || []).join(', '),
+    description: (item.subjects || []).slice(0, 3).join(' · '),
+    type: 'Classique'
+  }));
+}
+
+async function handleAuthorTitles(request, env) {
+  const ctx = await readAuthorBody(request, env);
+  if (ctx.errorResponse) return ctx.errorResponse;
+  const query = authorClean(ctx.body.query, 180);
+  if (!query) return json({ error: 'Titre requis.' }, 400);
+  try {
+    const results = uniqueAuthorResults(await searchOpenLibrary(`title:${query}`, 'title,author_name,first_publish_year,language,first_sentence,subject'), 10);
+    return json({
+      results: results.map(item => ({
+        ...item,
+        description: item.description || 'Titre semblable trouvé dans les références consultées.'
+      })),
+      message: results.length ? '' : 'Aucun titre semblable trouvé pour le moment.'
+    });
+  } catch (e) {
+    return json({ error: 'Petite interruption... réessaies dans un instant 💜' }, 502);
+  }
+}
+
+async function handleAuthorComparables(request, env) {
+  const ctx = await readAuthorBody(request, env);
+  if (ctx.errorResponse) return ctx.errorResponse;
+  const query = authorClean(ctx.body.query, 220);
+  const type = authorClean(ctx.body.type, 30);
+  if (!query) return json({ error: 'Recherche requise.' }, 400);
+  const search = type === 'author' ? `inauthor:${query}` : (type === 'isbn' ? `isbn:${query}` : query);
+  try {
+    const [a, b] = await Promise.all([
+      searchOpenLibrary(search, 'title,author_name,first_publish_year,language,first_sentence,subject'),
+      searchGoogleBooks(search)
+    ]);
+    const results = uniqueAuthorResults([...b, ...a], 12).map(item => ({
+      ...item,
+      description: item.description || 'Référence comparable à explorer pour le positionnement, le ton ou le lectorat.'
+    }));
+    return json({ results, message: results.length ? '' : 'Aucun comparable trouvé pour cette recherche.' });
+  } catch (e) {
+    return json({ error: 'Petite interruption... réessaies dans un instant 💜' }, 502);
+  }
+}
+
+async function handleAuthorLibrary(request, env) {
+  const ctx = await readAuthorBody(request, env);
+  if (ctx.errorResponse) return ctx.errorResponse;
+  const query = authorClean(ctx.body.query, 220);
+  const kind = authorClean(ctx.body.kind, 30);
+  if (!query) return json({ error: 'Recherche requise.' }, 400);
+  try {
+    const searches = kind === 'classic'
+      ? [searchGutendex(query)]
+      : [searchGutendex(query), searchOpenLibrary(query, 'title,author_name,first_publish_year,language,first_sentence,subject')];
+    const lists = await Promise.all(searches);
+    const results = uniqueAuthorResults(lists.flat(), 12).map(item => ({
+      ...item,
+      description: item.description || 'Piste d’inspiration utile pour nourrir ton univers, tes thèmes ou ta structure.'
+    }));
+    return json({ results, message: results.length ? '' : 'Aucune référence trouvée pour le moment.' });
+  } catch (e) {
+    return json({ error: 'Petite interruption... réessaies dans un instant 💜' }, 502);
+  }
+}
+
+async function handleAuthorWord(request, env) {
+  const ctx = await readAuthorBody(request, env);
+  if (ctx.errorResponse) return ctx.errorResponse;
+  const word = authorClean(ctx.body.word, 80);
+  if (!word) return json({ error: 'Mot requis.' }, 400);
+  const prompt = `Pour le mot français "${word}", réponds uniquement en JSON valide avec la forme {"results":[{"title":"","description":"","type":""}]}. Donne une définition claire, des synonymes, des antonymes et une courte note d'origine si elle est raisonnablement connue. Si tu n'es pas certain, indique-le sobrement.`;
+  try {
+    const data = await callAuthorModel(env, prompt, 900);
+    const parsed = parseAuthorJson(data);
+    if (parsed && Array.isArray(parsed.results)) return json({ results: parsed.results.slice(0, 6) });
+    return json({ results: [{ title: word, description: data, type: 'Mot juste' }] });
+  } catch (e) {
+    return json({ error: 'Petite interruption... réessaies dans un instant 💜' }, 502);
+  }
+}
+
+async function handleAuthorCorrect(request, env) {
+  const ctx = await readAuthorBody(request, env);
+  if (ctx.errorResponse) return ctx.errorResponse;
+  const text = String(ctx.body.text || '').trim().slice(0, 8000);
+  if (!text) return json({ error: 'Texte requis.' }, 400);
+  const prompt = `Corrige ce texte en français : orthographe, grammaire, syntaxe légère et typographie. Ne change pas la voix de l'auteur et ne raccourcis pas arbitrairement. Réponds uniquement en JSON valide avec {"corrected":"","note":""}.\n\nTEXTE:\n${text}`;
+  try {
+    const data = await callAuthorModel(env, prompt, 2600);
+    const parsed = parseAuthorJson(data);
+    if (parsed && parsed.corrected) return json({ corrected: parsed.corrected, note: parsed.note || 'Correction NyXia terminée.' });
+    return json({ corrected: data, note: 'Correction NyXia terminée.' });
+  } catch (e) {
+    return json({ error: 'Petite interruption... réessaies dans un instant 💜' }, 502);
+  }
+}
+
+async function handleAuthorCharacter(request, env) {
+  const ctx = await readAuthorBody(request, env);
+  if (ctx.errorResponse) return ctx.errorResponse;
+  const genre = authorClean(ctx.body.genre, 160);
+  const role = authorClean(ctx.body.role, 160);
+  const notes = authorClean(ctx.body.notes, 1200);
+  if (!genre && !role && !notes) return json({ error: 'Ajoute une idée de départ.' }, 400);
+  const prompt = `Crée un personnage pour un projet d'écriture. Réponds uniquement en JSON valide avec {"character":{"name":"","summary":"","tags":[],"strengths":[],"contradictions":[],"secrets":[],"relationships":[]}}. Reste utile, non graphique, et évite tout contenu sexuel explicite.\n\nGenre/univers: ${genre}\nRôle: ${role}\nNotes: ${notes}`;
+  try {
+    const data = await callAuthorModel(env, prompt, 1700);
+    const parsed = parseAuthorJson(data);
+    if (parsed && parsed.character) return json({ character: parsed.character });
+    return json({ character: { name: 'Personnage NyXia', summary: data, tags: [genre, role].filter(Boolean), strengths: [], contradictions: [], secrets: [], relationships: [] } });
+  } catch (e) {
+    return json({ error: 'Petite interruption... réessaies dans un instant 💜' }, 502);
+  }
+}
+
+async function handleAuthorMuse(request, env) {
+  const ctx = await readAuthorBody(request, env);
+  if (ctx.errorResponse) return ctx.errorResponse;
+  const query = authorClean(ctx.body.query, 220);
+  const format = authorClean(ctx.body.format, 30);
+  if (!query) return json({ error: 'Recherche requise.' }, 400);
+  try {
+    const url = new URL('https://api.openverse.engineering/v1/images/');
+    url.searchParams.set('q', query);
+    url.searchParams.set('page_size', '12');
+    url.searchParams.set('license_type', 'commercial,modification');
+    if (format) url.searchParams.set('aspect_ratio', format === 'square' ? 'square' : (format === 'portrait' ? 'tall' : 'wide'));
+    const response = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+    if (!response.ok) throw new Error('image search failed');
+    const data = await response.json();
+    const results = (data.results || []).slice(0, 12).map(item => ({
+      title: item.title || 'Inspiration visuelle NyXia',
+      previewUrl: item.thumbnail || item.url,
+      pageUrl: item.foreign_landing_url || item.url,
+      attribution: [item.creator, item.license].filter(Boolean).join(' · ') || 'Attribution à vérifier avant usage final.'
+    }));
+    return json({ results, message: results.length ? '' : 'Aucune image trouvée pour le moment.' });
+  } catch (e) {
+    return json({ error: 'Petite interruption... réessaies dans un instant 💜' }, 502);
+  }
+}
+
+async function callAuthorModel(env, prompt, maxTokens = 1200) {
+  const apiKey = env.OPENROUTER_API_KEY || env.AI_API_KEY;
+  if (!apiKey) throw new Error('missing model key');
+  const messages = [
+    { role: 'system', content: 'Tu es NyXia dans le Portail Alex. Tu aides les auteurs avec clarté, sobriété et précision. Réponds dans le format demandé. Aucun nom de fournisseur ou d’API.' },
+    { role: 'user', content: prompt }
+  ];
+  async function call(model) {
+    return await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': env.SITE_URL || 'https://nyxia.top',
+        'X-Title': 'NyXia — Portail Alex (Outils Auteur)'
+      },
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.35, reasoning: { enabled: false } })
+    });
+  }
+  let response = await call(OPENROUTER_MODEL);
+  if (!response.ok) response = await call(OPENROUTER_FALLBACK_MODEL);
+  if (!response.ok) throw new Error('model failed');
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+function parseAuthorJson(text) {
+  try { return JSON.parse(text); } catch (_) {}
+  const match = String(text || '').match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try { return JSON.parse(match[0]); } catch (_) { return null; }
+}
+
 function coverProviderCandidates(mode, env) {
   const ideogram = env.IDEOGRAM_API_KEY ? {
     id: 'ideogram',
@@ -2146,6 +2423,15 @@ const url = new URL(request.url);
       if (path === '/api/products' && request.method === 'GET') return await handleListProducts(request, env);
       if (path === '/api/products' && request.method === 'POST') return await handleCreateProduct(request, env);
       if (path === '/api/chat' && request.method === 'POST') return await handleChat(request, env);
+
+      // ── Boîte à outils NyXia (Portail Alex) ──
+      if (path === '/api/author/titles' && request.method === 'POST') return await handleAuthorTitles(request, env);
+      if (path === '/api/author/comparables' && request.method === 'POST') return await handleAuthorComparables(request, env);
+      if (path === '/api/author/word' && request.method === 'POST') return await handleAuthorWord(request, env);
+      if (path === '/api/author/correct' && request.method === 'POST') return await handleAuthorCorrect(request, env);
+      if (path === '/api/author/muse' && request.method === 'POST') return await handleAuthorMuse(request, env);
+      if (path === '/api/author/character' && request.method === 'POST') return await handleAuthorCharacter(request, env);
+      if (path === '/api/author/library' && request.method === 'POST') return await handleAuthorLibrary(request, env);
 
       // ── Studio de couverture KDP (Portail Alex) ──
       if (path === '/api/cover/providers' && request.method === 'GET') return await handleCoverProviders(request, env);
