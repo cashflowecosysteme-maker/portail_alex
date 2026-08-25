@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="/FavIcon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Studio de couverture KDP — Portail Alex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090714;
+      --panel: rgba(20, 15, 39, 0.94);
+      --panel-2: rgba(31, 23, 57, 0.92);
+      --line: rgba(167, 126, 255, 0.18);
+      --line-strong: rgba(167, 126, 255, 0.38);
+      --purple: #9a6bff;
+      --purple-2: #6f45dc;
+      --gold: #e9c46a;
+      --pink: #e88bd8;
+      --green: #63d8ac;
+      --red: #ff7b93;
+      --text: #f7f3ff;
+      --muted: #aaa1bd;
+      --muted-2: #80778f;
+      --shadow: 0 22px 65px rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; }
+    body { overflow-x: hidden; }
+    #starry-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    button, input, select, textarea { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+    a { color: #cbb4ff; }
+
+    .page { position: relative; z-index: 1; min-height: 100vh; padding: 22px; }
+    .topbar {
+      max-width: 1500px; margin: 0 auto 18px; padding: 18px 22px; display: flex; align-items: center;
+      justify-content: space-between; gap: 18px; border: 1px solid var(--line); border-radius: 18px;
+      background: linear-gradient(135deg, rgba(27, 20, 49, 0.97), rgba(16, 12, 31, 0.94)); box-shadow: var(--shadow);
+    }
+    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand img { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; border: 1px solid rgba(233, 196, 106, 0.4); }
+    .brand h1 { margin: 0; font-family: 'Cormorant Garamond', serif; font-size: clamp(24px, 3vw, 34px); line-height: 1; }
+    .brand p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+    .top-actions { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .saved-state { color: var(--muted); font-size: 11px; min-width: 74px; text-align: right; }
+
+    .layout { max-width: 1500px; margin: 0 auto; display: grid; grid-template-columns: minmax(360px, 500px) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .controls, .preview-panel { border: 1px solid var(--line); border-radius: 20px; background: var(--panel); box-shadow: var(--shadow); }
+    .controls { overflow: hidden; }
+    .preview-panel { position: sticky; top: 18px; min-height: 760px; overflow: hidden; }
+
+    .intro { padding: 21px 22px 18px; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, rgba(154, 107, 255, 0.13), rgba(233, 196, 106, 0.06)); }
+    .intro-badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; color: #e7d8ff; background: rgba(154, 107, 255, 0.14); border: 1px solid rgba(154, 107, 255, 0.25); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .intro h2 { margin: 12px 0 7px; font-family: 'Cormorant Garamond', serif; font-size: 28px; }
+    .intro p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+
+    .section { padding: 21px 22px; border-bottom: 1px solid var(--line); }
+    .section:last-child { border-bottom: 0; }
+    .section-head { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 17px; }
+    .step { width: 29px; height: 29px; flex: 0 0 29px; border-radius: 9px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--purple), var(--purple-2)); box-shadow: 0 7px 18px rgba(111, 69, 220, .27); }
+    .section-head h3 { margin: 0; font-size: 16px; }
+    .section-head p { margin: 3px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { margin-bottom: 13px; }
+    .field:last-child { margin-bottom: 0; }
+    label, .label { display: block; margin: 0 0 6px; color: #ded6ed; font-size: 11px; font-weight: 650; }
+    .optional { color: var(--muted-2); font-weight: 400; }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%; border: 1px solid var(--line); border-radius: 11px; background: rgba(8, 6, 17, 0.72); color: var(--text);
+      outline: none; padding: 11px 12px; transition: border-color .2s, box-shadow .2s, background .2s;
+    }
+    textarea { min-height: 95px; resize: vertical; line-height: 1.5; }
+    input:focus, select:focus, textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(154, 107, 255, .12); background: rgba(12, 9, 24, .94); }
+    select option { background: #151025; }
+    input[type="color"] { width: 44px; height: 38px; padding: 3px; border-radius: 10px; border: 1px solid var(--line); background: rgba(8,6,17,.72); cursor: pointer; }
+    .hint { margin-top: 6px; color: var(--muted-2); font-size: 10px; line-height: 1.45; }
+
+    .format-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 14px; }
+    .choice, .quality-card { position: relative; cursor: pointer; }
+    .choice input, .quality-card input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice-box { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(10, 8, 21, .58); text-align: center; color: var(--muted); font-size: 12px; font-weight: 650; transition: .2s; }
+    .choice input:checked + .choice-box { color: #fff; border-color: var(--purple); background: rgba(154,107,255,.15); box-shadow: 0 0 0 3px rgba(154,107,255,.08); }
+
+    .calculation { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+    .metric { padding: 10px 9px; border: 1px solid rgba(233,196,106,.2); border-radius: 11px; background: rgba(233,196,106,.055); min-width: 0; }
+    .metric strong { display: block; color: #f5dc98; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .metric span { display: block; color: var(--muted-2); font-size: 9px; margin-top: 2px; }
+    .notice { margin-top: 11px; padding: 10px 11px; border-radius: 11px; border: 1px solid rgba(99,216,172,.2); background: rgba(99,216,172,.07); color: #bfeeda; font-size: 10px; line-height: 1.5; }
+    .notice.warn { border-color: rgba(255,123,147,.24); background: rgba(255,123,147,.07); color: #ffc4cf; }
+
+    .quality-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .quality-box { min-height: 93px; padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: rgba(10,8,21,.58); transition: .2s; }
+    .quality-box strong { display: block; font-size: 12px; margin-bottom: 4px; }
+    .quality-box span { color: var(--muted); font-size: 10px; line-height: 1.4; display: block; }
+    .quality-box em { display: inline-flex; margin-top: 7px; padding: 3px 6px; border-radius: 999px; background: rgba(154,107,255,.12); color: #cdb9ff; font-size: 8px; font-style: normal; text-transform: uppercase; letter-spacing: .04em; }
+    .quality-card input:checked + .quality-box { border-color: var(--purple); background: rgba(154,107,255,.15); box-shadow: 0 0 0 3px rgba(154,107,255,.08); }
+    .quality-card.unavailable { opacity: .45; }
+    .quality-card.unavailable .quality-box { cursor: not-allowed; }
+
+    .color-row { display: flex; flex-wrap: wrap; gap: 12px; }
+    .color-field { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
+    .checks { display: grid; gap: 8px; margin-top: 13px; }
+    .check { display: flex; align-items: flex-start; gap: 9px; color: var(--muted); font-size: 11px; line-height: 1.4; cursor: pointer; }
+    .check input { accent-color: var(--purple); margin-top: 2px; }
+
+    .btn { border: 0; border-radius: 11px; padding: 10px 13px; cursor: pointer; color: #fff; font-weight: 700; font-size: 11px; transition: transform .18s, box-shadow .18s, opacity .18s; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: .42; cursor: not-allowed; }
+    .btn-primary { background: linear-gradient(135deg, #a676ff, #6b43d2); box-shadow: 0 9px 22px rgba(111,69,220,.25); }
+    .btn-gold { color: #21162f; background: linear-gradient(135deg, #f3dc98, #d9ad4f); box-shadow: 0 9px 22px rgba(217,173,79,.2); }
+    .btn-soft { background: rgba(154,107,255,.12); border: 1px solid rgba(154,107,255,.24); color: #d9caff; }
+    .btn-dark { background: rgba(8,6,17,.7); border: 1px solid var(--line); color: var(--muted); }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-row .btn { flex: 1 1 120px; }
+    .file-input { display: none; }
+    .generation-state { margin-top: 10px; min-height: 22px; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(154,107,255,.2); border-top-color: var(--purple); animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .preview-head { padding: 18px 20px 13px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+    .preview-head h2 { margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 25px; }
+    .preview-head p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+    .provider-pill { max-width: 260px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 9px; text-align: center; }
+    .provider-pill.ready { border-color: rgba(99,216,172,.27); color: #aee8d2; background: rgba(99,216,172,.06); }
+
+    .preview-tabs { display: flex; gap: 7px; padding: 13px 18px 0; }
+    .tab { border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; }
+    .tab.active { color: #fff; border-color: var(--purple); background: rgba(154,107,255,.13); }
+    .canvas-zone { min-height: 515px; padding: 18px; display: grid; place-items: center; background: radial-gradient(circle at 50% 10%, rgba(154,107,255,.08), transparent 45%); }
+    .canvas-wrap { width: 100%; display: none; place-items: center; }
+    .canvas-wrap.active { display: grid; }
+    canvas.preview-canvas { display: block; max-width: 100%; max-height: 520px; width: auto; height: auto; border-radius: 6px; background: #17111f; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+    #front-preview { aspect-ratio: 5 / 8; }
+    #wrap-preview { border-radius: 4px; }
+    .preview-caption { width: 100%; margin-top: 13px; color: var(--muted-2); font-size: 9px; text-align: center; line-height: 1.5; }
+
+    .export-area { padding: 17px 18px 20px; border-top: 1px solid var(--line); background: rgba(8,6,17,.3); }
+    .export-title { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 11px; }
+    .export-title strong { font-size: 13px; }
+    .export-title span { color: var(--muted-2); font-size: 9px; }
+    .export-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .export-grid .btn { min-height: 42px; }
+    .legal-note { margin: 13px 1px 0; color: var(--muted-2); font-size: 9px; line-height: 1.5; }
+    .legal-note strong { color: #c9bfd8; }
+
+    .toast { position: fixed; z-index: 50; left: 50%; bottom: 22px; transform: translate(-50%, 20px); min-width: 250px; max-width: min(520px, calc(100vw - 30px)); padding: 11px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: rgba(15,11,28,.98); box-shadow: var(--shadow); color: #fff; font-size: 11px; opacity: 0; pointer-events: none; transition: .25s; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .toast.error { border-color: rgba(255,123,147,.45); }
+
+    @media (max-width: 1030px) {
+      .layout { grid-template-columns: 1fr; }
+      .preview-panel { position: static; min-height: 0; }
+    }
+    @media (max-width: 620px) {
+      .page { padding: 10px; }
+      .topbar { padding: 14px; border-radius: 15px; }
+      .brand img { width: 41px; height: 41px; }
+      .brand p, .saved-state { display: none; }
+      .top-actions .btn { padding: 9px 10px; }
+      .section, .intro { padding: 18px 15px; }
+      .grid-2, .quality-grid { grid-template-columns: 1fr; }
+      .calculation { grid-template-columns: 1fr; }
+      .preview-head { align-items: flex-start; flex-direction: column; }
+      .provider-pill { max-width: 100%; }
+      .canvas-zone { min-height: 380px; padding: 12px; }
+      .export-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="starry-canvas"></canvas>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/Alex.png" alt="Alex">
+        <div>
+          <h1>Studio de couverture KDP</h1>
+          <p>Calculateur précis · composition guidée · export prêt à vérifier</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="saved-state" id="saved-state">Prêt</span>
+        <button type="button" class="btn btn-dark" id="clear-draft">Recommencer</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="controls" aria-label="Paramètres de la couverture">
+        <div class="intro">
+          <span class="intro-badge">✦ Atelier d’écriture d’Alex</span>
+          <h2>De ton idée au fichier final</h2>
+          <p>Remplis seulement ce que tu connais. Le studio calcule la tranche, place les zones de sécurité et prépare tes exports sans logiciel compliqué.</p>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <span class="step">1</span>
+            <div><h3>Ton livre</h3><p>Ces renseignements seront composés proprement sur la couverture.</p></div>
+          </div>
+          <div class="field">
+            <label for="book-title">Titre du livre</label>
+            <input id="book-title" type="text" maxlength="150" value="Le livre qui attendait son auteur" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="book-subtitle">Sous-titre <span class="optional">— facultatif</span></label>
+            <input id="book-subtitle" type="text" maxlength="220" value="Écrire, structurer et donner vie à son histoire" autocomplete="off">
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="book-author">Nom d’auteur</label>
+              <input id="book-author" type="text" maxlength="100" value="Ton nom" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="book-genre">Genre</label>
+              <select id="book-genre">
+                <option>Roman contemporain</option>
+                <option>Romance</option>
+                <option>Policier</option>
+                <option>Drame humain</option>
+                <option>Jeunesse</option>
+                <option>Fantasy</option>
+                <option>Science-fiction</option>
+                <option>Horreur</option>
+                <option>Développement personnel</option>
+                <option>Formation / guide pratique</option>
+                <option>Autre</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="back-text">Texte de quatrième de couverture</label>
+            <textarea id="back-text" maxlength="1800">Et si ton histoire n’attendait qu’un cadre clair pour enfin prendre vie? Découvre une méthode simple pour transformer tes idées en pages, tes scènes en émotions et ton projet en un véritable livre.</textarea>
+            <div class="hint"><span id="back-count">0</span>/1800 caractères · Tu pourras encore le modifier avant l’export.</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <span class="step">2</span>
+            <div><h3>Format et tranche</h3><p>Le calcul suit les formules de couverture imprimée Amazon KDP.</p></div>
+          </div>
+          <div class="format-toggle">
+            <label class="choice">
+              <input type="radio" name="book-format" value="both" checked>
+              <span class="choice-box">📚 Ebook + papier</span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="book-format" value="ebook">
+              <span class="choice-box">📱 Ebook seulement</span>
+            </label>
+          </div>
+          <div id="print-options">
+            <div class="grid-2">
+              <div class="field">
+                <label for="trim-size">Format du livre</label>
+                <select id="trim-size">
+                  <option value="5x8">5 × 8 po</option>
+                  <option value="5.25x8">5,25 × 8 po</option>
+                  <option value="5.5x8.5">5,5 × 8,5 po</option>
+                  <option value="6x9" selected>6 × 9 po</option>
+                  <option value="7x10">7 × 10 po</option>
+                  <option value="8x10">8 × 10 po</option>
+                  <option value="8.5x11">8,5 × 11 po</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="page-count">Nombre final de pages</label>
+                <input id="page-count" type="number" min="24" max="828" step="1" value="200" inputmode="numeric">
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="interior-type">Intérieur du livre</label>
+                <select id="interior-type">
+                  <option value="bw">Noir et blanc</option>
+                  <option value="standard-color">Couleur standard</option>
+                  <option value="premium-color">Couleur premium</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="paper-type">Papier</label>
+                <select id="paper-type">
+                  <option value="white">Blanc</option>
+                  <option value="cream">Crème</option>
+                </select>
+              </div>
+            </div>
+            <div class="calculation">
+              <div class="metric"><strong id="spine-inch">0,450 po</strong><span>largeur de tranche</span></div>
+              <div class="metric"><strong id="cover-inch">12,700 × 9,250 po</strong><span>couverture complète</span></div>
+              <div class="metric"><strong id="cover-pixels">3810 × 2775 px</strong><span>à 300 ppp</span></div>
+            </div>
+            <div class="notice" id="spine-notice">La tranche peut recevoir le titre et le nom d’auteur.</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <span class="step">3</span>
+            <div><h3>Ambiance visuelle</h3><p>Choisis un résultat, pas une technologie. NyXia sélectionne le bon moteur.</p></div>
+          </div>
+          <div class="quality-grid" id="quality-grid">
+            <label class="quality-card" data-mode="fast">
+              <input type="radio" name="quality" value="fast">
+              <span class="quality-box"><strong>⚡ Rapide</strong><span>Pour essayer une direction visuelle rapidement.</span><em>économique</em></span>
+            </label>
+            <label class="quality-card" data-mode="balanced">
+              <input type="radio" name="quality" value="balanced" checked>
+              <span class="quality-box"><strong>✦ Équilibrée</strong><span>Beau rendu, bon respect de ton idée.</span><em>recommandé</em></span>
+            </label>
+            <label class="quality-card" data-mode="design">
+              <input type="radio" name="quality" value="design">
+              <span class="quality-box"><strong>◆ Design professionnel</strong><span>Composition éditoriale plus raffinée.</span><em>couverture premium</em></span>
+            </label>
+            <label class="quality-card" data-mode="photo">
+              <input type="radio" name="quality" value="photo">
+              <span class="quality-box"><strong>📷 Photo réaliste</strong><span>Pour un rendu crédible et cinématographique.</span><em>réalisme</em></span>
+            </label>
+          </div>
+
+          <div class="field" style="margin-top:15px">
+            <label for="art-prompt">Décris l’image que tu imagines</label>
+            <textarea id="art-prompt" maxlength="5000" placeholder="Exemple : une femme devant une bibliothèque ancienne, lumière violette et dorée, atmosphère inspirante, composition verticale..."></textarea>
+            <div class="hint">Le titre est ajouté ensuite par le studio pour rester parfaitement lisible.</div>
+          </div>
+          <div class="btn-row" style="margin-bottom:13px">
+            <button type="button" class="btn btn-soft" id="suggest-prompt">✨ Préparer mon idée</button>
+            <button type="button" class="btn btn-soft" id="change-ambiance">🎨 Nouvelle ambiance</button>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label for="font-style">Style du titre</label>
+              <select id="font-style">
+                <option value="elegant">Élégant</option>
+                <option value="modern">Moderne</option>
+                <option value="impact">Impact</option>
+              </select>
+            </div>
+            <div class="field">
+              <span class="label">Couleurs</span>
+              <div class="color-row">
+                <label class="color-field">Texte <input id="text-color" type="color" value="#ffffff"></label>
+                <label class="color-field">Accent <input id="accent-color" type="color" value="#e9c46a"></label>
+              </div>
+            </div>
+          </div>
+          <div class="checks">
+            <label class="check"><input id="show-spine-text" type="checkbox" checked> <span>Ajouter le titre sur la tranche quand le nombre de pages le permet.</span></label>
+            <label class="check"><input id="show-guides" type="checkbox" checked> <span>Afficher les repères de coupe et zones sûres dans l’aperçu seulement.</span></label>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <span class="step">4</span>
+            <div><h3>Créer ou importer l’illustration</h3><p>L’importation fonctionne déjà. La génération s’active dès qu’une clé est configurée dans le Worker.</p></div>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" id="generate-art">✦ Générer l’image</button>
+            <button type="button" class="btn btn-soft" id="upload-art">⬆ Importer mon image</button>
+            <input class="file-input" id="art-file" type="file" accept="image/png,image/jpeg,image/webp">
+          </div>
+          <div class="generation-state" id="generation-state">Vérification des moteurs d’image…</div>
+        </div>
+      </section>
+
+      <section class="preview-panel" aria-label="Aperçu et export">
+        <div class="preview-head">
+          <div><h2>Aperçu en direct</h2><p>Le fichier final sera généré en haute résolution.</p></div>
+          <div class="provider-pill" id="provider-pill">Illustration locale prête</div>
+        </div>
+        <div class="preview-tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="front">Couverture ebook</button>
+          <button type="button" class="tab" data-tab="wrap">Dos · tranche · recto</button>
+        </div>
+        <div class="canvas-zone">
+          <div class="canvas-wrap active" id="front-wrap">
+            <canvas class="preview-canvas" id="front-preview" width="600" height="960"></canvas>
+            <div class="preview-caption">Aperçu · l’export ebook sera produit en 1600 × 2560 px.</div>
+          </div>
+          <div class="canvas-wrap" id="wrap-wrap">
+            <canvas class="preview-canvas" id="wrap-preview" width="1000" height="728"></canvas>
+            <div class="preview-caption" id="wrap-caption">Aperçu avec repères. Les repères ne seront pas inclus dans les fichiers exportés.</div>
+          </div>
+        </div>
+        <div class="export-area">
+          <div class="export-title"><strong>Exporter la couverture</strong><span>Création dans ton navigateur</span></div>
+          <div class="export-grid">
+            <button type="button" class="btn btn-gold" id="export-ebook">⬇ JPG ebook</button>
+            <button type="button" class="btn btn-primary" id="export-pdf">⬇ PDF couverture papier</button>
+            <button type="button" class="btn btn-soft" id="export-png">⬇ PNG couverture papier</button>
+            <button type="button" class="btn btn-dark" id="export-spec">⬇ Fiche des dimensions</button>
+          </div>
+          <p class="legal-note"><strong>Avant de publier :</strong> vérifie toujours le PDF dans l’outil d’aperçu KDP. Amazon demande aussi de déclarer le contenu généré par IA lorsqu’il y en a. Le studio conserve le titre et les textes dans une couche composée par NyXia afin d’éviter les fautes de typographie produites par les générateurs d’images.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/starry-bg.js" defer></script>
+  <script>
+  'use strict'
+
+  var BLEED_IN = 0.125
+  var SAFE_IN = 0.25
+  var PRINT_DPI = 300
+  var MAX_IMAGE_BYTES = 15 * 1024 * 1024
+  var DRAFT_KEY = 'nyxia_cover_studio_draft_v1'
+  var sessionToken = ''
+  var providerModes = { fast: false, balanced: false, design: false, photo: false }
+  var artworkImage = null
+  var artworkObjectUrl = ''
+  var ambianceIndex = 0
+  var renderTimer = null
+  var saveTimer = null
+  var promptWasPrepared = false
+
+  var AMBIANCES = [
+    ['#17102f', '#5c2e91', '#e9b76a'],
+    ['#081a30', '#1f6f8b', '#b8e1dd'],
+    ['#24111b', '#923c5b', '#f1c29a'],
+    ['#071b18', '#28675b', '#d5bd7a'],
+    ['#171717', '#454545', '#e3c56e'],
+    ['#160a22', '#512567', '#e07eb9']
+  ]
+
+  function byId(id) { return document.getElementById(id) }
+
+  function getUrlToken() {
+    try { return new URLSearchParams(location.search).get('t') || '' } catch (_) { return '' }
+  }
+
+  async function initializeAuth() {
+    var fromUrl = getUrlToken()
+    if (fromUrl) {
+      sessionStorage.setItem('nyxia_token', fromUrl)
+      sessionToken = fromUrl
+    } else {
+      sessionToken = sessionStorage.getItem('nyxia_token') || ''
+    }
+    if (!sessionToken) return redirectToLogin()
+    try {
+      var response = await fetch('/api/check-auth', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: sessionToken })
+      })
+      var data = await response.json()
+      if (!data.valid) return redirectToLogin()
+      await loadProviderStatus()
+    } catch (_) {
+      setGenerationState('Petite interruption… l’importation et les exports locaux restent disponibles.', false)
+    }
+  }
+
+  function redirectToLogin() {
+    try { window.top.location.href = '/login.html' } catch (_) { location.href = '/login.html' }
+  }
+
+  async function loadProviderStatus() {
+    try {
+      var response = await fetch('/api/cover/providers', { headers: authHeaders() })
+      var data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Moteurs non disponibles')
+      providerModes = data.modes || providerModes
+      document.querySelectorAll('.quality-card').forEach(function(card) {
+        var mode = card.getAttribute('data-mode')
+        var available = !!providerModes[mode]
+        card.classList.toggle('unavailable', !available)
+        var radio = card.querySelector('input')
+        if (radio) radio.disabled = !available
+      })
+      var selected = document.querySelector('input[name="quality"]:checked')
+      if (!selected || selected.disabled) {
+        var first = document.querySelector('.quality-card:not(.unavailable) input')
+        if (first) first.checked = true
+      }
+      var count = Object.keys(providerModes).filter(function(k) { return providerModes[k] }).length
+      byId('generate-art').disabled = count === 0
+      if (count) {
+        byId('provider-pill').classList.add('ready')
+        byId('provider-pill').textContent = count + ' style' + (count > 1 ? 's' : '') + ' de génération disponible' + (count > 1 ? 's' : '')
+        setGenerationState('Génération IA prête. Tu peux aussi importer ta propre image.', false)
+      } else {
+        byId('provider-pill').textContent = 'Importation et composition locales'
+        setGenerationState('Ajoute une clé Ideogram, Recraft ou FLUX au Worker pour activer la génération. Les imports et exports fonctionnent déjà.', false)
+      }
+    } catch (error) {
+      byId('generate-art').disabled = true
+      setGenerationState('La génération IA n’est pas encore reliée. Les imports et exports fonctionnent déjà.', false)
+    }
+  }
+
+  function authHeaders(json) {
+    var h = { 'Authorization': 'Bearer ' + sessionToken }
+    if (json) h['Content-Type'] = 'application/json'
+    return h
+  }
+
+  function currentFormat() {
+    var selected = document.querySelector('input[name="book-format"]:checked')
+    return selected ? selected.value : 'both'
+  }
+
+  function currentQuality() {
+    var selected = document.querySelector('input[name="quality"]:checked')
+    return selected ? selected.value : 'balanced'
+  }
+
+  function parseTrim() {
+    var parts = byId('trim-size').value.split('x')
+    return { width: Number(parts[0]) || 6, height: Number(parts[1]) || 9 }
+  }
+
+  function calculateCover() {
+    var trim = parseTrim()
+    var pages = Math.max(24, Math.min(828, Math.round(Number(byId('page-count').value) || 24)))
+    var interior = byId('interior-type').value
+    var paper = byId('paper-type').value
+    var factor = 0.002252
+    if (interior === 'bw' && paper === 'cream') factor = 0.0025
+    if (interior === 'premium-color') factor = 0.002347
+    if (interior === 'standard-color') factor = 0.002252
+    var spine = pages * factor
+    var width = (2 * trim.width) + spine + (2 * BLEED_IN)
+    var height = trim.height + (2 * BLEED_IN)
+    return {
+      trimWidth: trim.width,
+      trimHeight: trim.height,
+      pages: pages,
+      interior: interior,
+      paper: paper,
+      factor: factor,
+      spine: spine,
+      width: width,
+      height: height,
+      pixelWidth: Math.round(width * PRINT_DPI),
+      pixelHeight: Math.round(height * PRINT_DPI),
+      spineTextAllowed: pages > 79
+    }
+  }
+
+  function getState() {
+    var c = calculateCover()
+    return {
+      title: byId('book-title').value.trim() || 'Titre du livre',
+      subtitle: byId('book-subtitle').value.trim(),
+      author: byId('book-author').value.trim() || 'Nom d’auteur',
+      genre: byId('book-genre').value,
+      backText: byId('back-text').value.trim(),
+      prompt: byId('art-prompt').value.trim(),
+      fontStyle: byId('font-style').value,
+      textColor: byId('text-color').value,
+      accentColor: byId('accent-color').value,
+      showSpineText: byId('show-spine-text').checked && c.spineTextAllowed,
+      showGuides: byId('show-guides').checked,
+      format: currentFormat(),
+      quality: currentQuality(),
+      calculation: c
+    }
+  }
+
+  function formatNumber(value, decimals) {
+    return Number(value).toFixed(decimals).replace('.', ',')
+  }
+
+  function updateCalculations() {
+    var c = calculateCover()
+    byId('spine-inch').textContent = formatNumber(c.spine, 3) + ' po'
+    byId('cover-inch').textContent = formatNumber(c.width, 3) + ' × ' + formatNumber(c.height, 3) + ' po'
+    byId('cover-pixels').textContent = c.pixelWidth + ' × ' + c.pixelHeight + ' px'
+    var notice = byId('spine-notice')
+    if (c.spineTextAllowed) {
+      notice.className = 'notice'
+      notice.textContent = 'La tranche peut recevoir le titre et le nom d’auteur.'
+    } else {
+      notice.className = 'notice warn'
+      notice.textContent = 'Moins de 80 pages : le studio retire automatiquement le texte de la tranche.'
+    }
+    byId('show-spine-text').disabled = !c.spineTextAllowed
+    byId('wrap-caption').textContent = 'Aperçu de ' + formatNumber(c.width, 3) + ' × ' + formatNumber(c.height, 3) + ' po. Les repères ne seront pas exportés.'
+  }
+
+  function syncPaperOptions() {
+    var color = byId('interior-type').value !== 'bw'
+    var cream = byId('paper-type').querySelector('option[value="cream"]')
+    cream.disabled = color
+    if (color) byId('paper-type').value = 'white'
+  }
+
+  function syncFormatOptions() {
+    var print = currentFormat() !== 'ebook'
+    byId('print-options').style.display = print ? '' : 'none'
+    document.querySelectorAll('[data-tab="wrap"]').forEach(function(tab) { tab.style.display = print ? '' : 'none' })
+    byId('export-pdf').disabled = !print
+    byId('export-png').disabled = !print
+    if (!print && byId('wrap-wrap').classList.contains('active')) switchPreview('front')
+  }
+
+  function fontFamily(style) {
+    if (style === 'modern') return 'Outfit, Arial, sans-serif'
+    if (style === 'impact') return 'Impact, Arial Black, sans-serif'
+    return 'Cormorant Garamond, Georgia, serif'
+  }
+
+  function coverDrawImage(ctx, image, x, y, w, h) {
+    var imageRatio = image.naturalWidth / image.naturalHeight
+    var targetRatio = w / h
+    var sx = 0, sy = 0, sw = image.naturalWidth, sh = image.naturalHeight
+    if (imageRatio > targetRatio) {
+      sw = image.naturalHeight * targetRatio
+      sx = (image.naturalWidth - sw) / 2
+    } else {
+      sh = image.naturalWidth / targetRatio
+      sy = (image.naturalHeight - sh) / 2
+    }
+    ctx.drawImage(image, sx, sy, sw, sh, x, y, w, h)
+  }
+
+  function drawLocalAmbiance(ctx, x, y, w, h) {
+    var colors = AMBIANCES[ambianceIndex % AMBIANCES.length]
+    var gradient = ctx.createLinearGradient(x, y, x + w, y + h)
+    gradient.addColorStop(0, colors[0])
+    gradient.addColorStop(.58, colors[1])
+    gradient.addColorStop(1, colors[2])
+    ctx.fillStyle = gradient
+    ctx.fillRect(x, y, w, h)
+
+    ctx.save()
+    ctx.globalAlpha = .26
+    for (var i = 0; i < 18; i++) {
+      var px = x + ((i * 137.3) % w)
+      var py = y + ((i * 223.7) % h)
+      var r = Math.max(1, w * (0.002 + (i % 3) * .0015))
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill()
+    }
+    ctx.globalAlpha = .12
+    ctx.strokeStyle = colors[2]
+    ctx.lineWidth = Math.max(2, w * .005)
+    for (var j = 0; j < 4; j++) {
+      ctx.beginPath()
+      ctx.arc(x + w * (.68 - j * .08), y + h * (.36 + j * .07), w * (.26 + j * .08), .6, 5.5)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
+  function drawArtwork(ctx, x, y, w, h) {
+    ctx.save()
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip()
+    if (artworkImage) coverDrawImage(ctx, artworkImage, x, y, w, h)
+    else drawLocalAmbiance(ctx, x, y, w, h)
+    var vignette = ctx.createRadialGradient(x + w * .5, y + h * .42, w * .08, x + w * .5, y + h * .45, w * .78)
+    vignette.addColorStop(0, 'rgba(0,0,0,0)')
+    vignette.addColorStop(1, 'rgba(0,0,0,.52)')
+    ctx.fillStyle = vignette; ctx.fillRect(x, y, w, h)
+    ctx.restore()
+  }
+
+  function wrapLines(ctx, text, maxWidth, maxLines) {
+    var words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)
+    if (!words.length) return []
+    var lines = []
+    var line = words.shift()
+    while (words.length) {
+      var word = words.shift()
+      var test = line + ' ' + word
+      if (ctx.measureText(test).width <= maxWidth) line = test
+      else { lines.push(line); line = word }
+      if (maxLines && lines.length === maxLines - 1) {
+        line += (words.length ? ' ' + words.join(' ') : '')
+        while (ctx.measureText(line + '…').width > maxWidth && line.length > 4) line = line.slice(0, -1)
+        if (words.length) line = line.trim() + '…'
+        words = []
+      }
+    }
+    lines.push(line)
+    return maxLines ? lines.slice(0, maxLines) : lines
+  }
+
+  function drawCenteredTextBlock(ctx, text, centerX, topY, maxWidth, startSize, lineRatio, maxLines, family, weight, color) {
+    var size = startSize
+    var lines = []
+    while (size > 12) {
+      ctx.font = weight + ' ' + Math.round(size) + 'px ' + family
+      lines = wrapLines(ctx, text, maxWidth, maxLines)
+      if (lines.length <= maxLines && lines.every(function(line) { return ctx.measureText(line).width <= maxWidth })) break
+      size -= 2
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = color
+    var lineHeight = size * lineRatio
+    lines.forEach(function(line, index) { ctx.fillText(line, centerX, topY + index * lineHeight) })
+    return { height: lines.length * lineHeight, size: size }
+  }
+
+  function drawParagraph(ctx, text, x, y, maxWidth, fontSize, lineRatio, maxLines, color) {
+    ctx.font = '400 ' + Math.round(fontSize) + 'px Outfit, Arial, sans-serif'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = color
+    var lines = wrapLines(ctx, text, maxWidth, maxLines)
+    var lh = fontSize * lineRatio
+    lines.forEach(function(line, index) { ctx.fillText(line, x, y + index * lh) })
+    return lines.length * lh
+  }
+
+  function drawFrontComposition(ctx, x, y, w, h, s) {
+    ctx.save()
+    var dark = ctx.createLinearGradient(x, y, x, y + h)
+    dark.addColorStop(0, 'rgba(0,0,0,.26)')
+    dark.addColorStop(.42, 'rgba(0,0,0,.08)')
+    dark.addColorStop(1, 'rgba(0,0,0,.72)')
+    ctx.fillStyle = dark; ctx.fillRect(x, y, w, h)
+    var family = fontFamily(s.fontStyle)
+    var titleY = y + h * .13
+    var title = drawCenteredTextBlock(ctx, s.title, x + w / 2, titleY, w * .78, w * .105, 1.02, 4, family, s.fontStyle === 'elegant' ? '700' : '800', s.textColor)
+    ctx.fillStyle = s.accentColor
+    ctx.fillRect(x + w * .38, titleY + title.height + h * .025, w * .24, Math.max(2, h * .003))
+    if (s.subtitle) {
+      drawCenteredTextBlock(ctx, s.subtitle, x + w / 2, titleY + title.height + h * .055, w * .72, w * .036, 1.25, 4, 'Outfit, Arial, sans-serif', '500', s.textColor)
+    }
+    ctx.font = '600 ' + Math.round(w * .034) + 'px Outfit, Arial, sans-serif'
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = s.textColor
+    ctx.fillText(s.author.toUpperCase(), x + w / 2, y + h * .92, w * .76)
+    ctx.restore()
+  }
+
+  function drawFront(canvas, exportMode) {
+    var s = getState()
+    var width = exportMode ? 1600 : 600
+    var height = exportMode ? 2560 : 960
+    canvas.width = width; canvas.height = height
+    var ctx = canvas.getContext('2d', { alpha: false })
+    drawArtwork(ctx, 0, 0, width, height)
+    drawFrontComposition(ctx, 0, 0, width, height, s)
+    if (!exportMode && s.showGuides) {
+      ctx.save(); ctx.setLineDash([8, 7]); ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = 1
+      ctx.strokeRect(width * .07, height * .055, width * .86, height * .89); ctx.restore()
+    }
+  }
+
+  function drawWrap(canvas, dpi, guides) {
+    var s = getState()
+    var c = s.calculation
+    var width = Math.round(c.width * dpi)
+    var height = Math.round(c.height * dpi)
+    canvas.width = width; canvas.height = height
+    var ctx = canvas.getContext('2d', { alpha: false })
+    drawArtwork(ctx, 0, 0, width, height)
+
+    var bleed = BLEED_IN * dpi
+    var backX = bleed
+    var backW = c.trimWidth * dpi
+    var spineX = backX + backW
+    var spineW = c.spine * dpi
+    var frontX = spineX + spineW
+    var coverY = bleed
+    var coverH = c.trimHeight * dpi
+    var safe = SAFE_IN * dpi
+
+    ctx.fillStyle = 'rgba(5,4,12,.57)'; ctx.fillRect(0, 0, frontX, height)
+    ctx.fillStyle = 'rgba(5,4,12,.35)'; ctx.fillRect(spineX, 0, spineW, height)
+    drawFrontComposition(ctx, frontX, coverY, c.trimWidth * dpi, coverH, s)
+
+    ctx.fillStyle = s.accentColor
+    ctx.fillRect(backX + safe, coverY + safe, Math.max(25, backW * .18), Math.max(2, dpi * .018))
+    ctx.font = '700 ' + Math.round(backW * .045) + 'px ' + fontFamily(s.fontStyle)
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = s.textColor
+    ctx.fillText(s.title, backX + safe, coverY + safe + dpi * .12, backW - safe * 2)
+    drawParagraph(ctx, s.backText || 'Ajoute ici le texte de ta quatrième de couverture.', backX + safe, coverY + safe + dpi * .48, backW - safe * 2, backW * .029, 1.45, 19, 'rgba(255,255,255,.93)')
+
+    var barcodeW = Math.min(2 * dpi, backW * .37)
+    var barcodeH = Math.min(1.2 * dpi, coverH * .17)
+    var barcodeX = backX + backW - safe - barcodeW
+    var barcodeY = coverY + coverH - safe - barcodeH
+    ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fillRect(barcodeX, barcodeY, barcodeW, barcodeH)
+    ctx.strokeStyle = 'rgba(20,20,25,.28)'; ctx.lineWidth = Math.max(1, dpi * .006); ctx.strokeRect(barcodeX, barcodeY, barcodeW, barcodeH)
+    ctx.fillStyle = '#292631'; ctx.font = '500 ' + Math.max(8, Math.round(dpi * .045)) + 'px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText('ZONE CODE-BARRES KDP', barcodeX + barcodeW / 2, barcodeY + barcodeH / 2)
+
+    if (s.showSpineText && spineW > dpi * .16) {
+      ctx.save()
+      ctx.translate(spineX + spineW / 2, coverY + coverH / 2)
+      ctx.rotate(Math.PI / 2)
+      var spineFont = Math.min(spineW * .47, dpi * .17)
+      ctx.font = '700 ' + Math.max(8, Math.round(spineFont)) + 'px ' + fontFamily(s.fontStyle)
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = s.textColor
+      var spineLabel = s.title + '  ·  ' + s.author
+      ctx.fillText(spineLabel, 0, 0, coverH - dpi * .5)
+      ctx.restore()
+    }
+
+    if (guides) drawWrapGuides(ctx, c, dpi, { bleed: bleed, backX: backX, backW: backW, spineX: spineX, spineW: spineW, frontX: frontX, coverY: coverY, coverH: coverH, safe: safe })
+  }
+
+  function drawWrapGuides(ctx, c, dpi, p) {
+    ctx.save()
+    ctx.lineWidth = Math.max(1, dpi * .006)
+    ctx.setLineDash([dpi * .04, dpi * .025])
+    ctx.strokeStyle = 'rgba(255,211,102,.88)'
+    ctx.strokeRect(p.backX, p.coverY, c.trimWidth * dpi, p.coverH)
+    ctx.strokeRect(p.frontX, p.coverY, c.trimWidth * dpi, p.coverH)
+    ctx.beginPath(); ctx.moveTo(p.spineX, p.coverY); ctx.lineTo(p.spineX, p.coverY + p.coverH); ctx.moveTo(p.frontX, p.coverY); ctx.lineTo(p.frontX, p.coverY + p.coverH); ctx.stroke()
+    ctx.strokeStyle = 'rgba(255,112,145,.9)'
+    ctx.strokeRect(p.backX + p.safe, p.coverY + p.safe, p.backW - p.safe * 2, p.coverH - p.safe * 2)
+    ctx.strokeRect(p.frontX + p.safe, p.coverY + p.safe, c.trimWidth * dpi - p.safe * 2, p.coverH - p.safe * 2)
+    ctx.restore()
+  }
+
+  function scheduleRender() {
+    clearTimeout(renderTimer)
+    renderTimer = setTimeout(renderPreviews, 80)
+    scheduleSave()
+  }
+
+  function renderPreviews() {
+    updateCalculations()
+    drawFront(byId('front-preview'), false)
+    var c = calculateCover()
+    var previewDpi = Math.min(86, Math.max(42, 1000 / c.width))
+    drawWrap(byId('wrap-preview'), previewDpi, getState().showGuides)
+    byId('back-count').textContent = byId('back-text').value.length
+  }
+
+  function buildSuggestedPrompt() {
+    var title = byId('book-title').value.trim()
+    var genre = byId('book-genre').value
+    var back = byId('back-text').value.trim().slice(0, 500)
+    return 'Illustration verticale de couverture pour un livre de genre « ' + genre + ' ». ' +
+      (title ? 'L’univers visuel doit évoquer le titre « ' + title + ' ». ' : '') +
+      (back ? 'Idée du livre : ' + back + ' ' : '') +
+      'Composition forte avec un sujet principal clairement identifiable, espace visuel calme dans la partie supérieure pour ajouter le titre, lumière cinématographique, finition éditoriale professionnelle. Image seule : aucun texte, aucune lettre, aucun logo, aucun filigrane, aucune maquette de livre.'
+  }
+
+  function preparePrompt() {
+    byId('art-prompt').value = buildSuggestedPrompt()
+    promptWasPrepared = true
+    scheduleRender()
+    showToast('Ton idée visuelle est prête. Tu peux la modifier avant de générer.')
+  }
+
+  async function startGeneration() {
+    var prompt = byId('art-prompt').value.trim()
+    if (!prompt) { preparePrompt(); prompt = byId('art-prompt').value.trim() }
+    var mode = currentQuality()
+    if (!providerModes[mode]) return showToast('Ce style n’est pas encore relié à une clé d’image.', true)
+    byId('generate-art').disabled = true
+    setGenerationState('Création de l’illustration en cours…', true)
+    try {
+      var response = await fetch('/api/cover/generate', {
+        method: 'POST', headers: authHeaders(true),
+        body: JSON.stringify({ token: sessionToken, prompt: prompt, mode: mode, title: byId('book-title').value.trim(), genre: byId('book-genre').value })
+      })
+      var data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'La création n’a pas démarré.')
+      if (data.status === 'ready' && data.imageUrl) {
+        await loadProtectedArtwork(data.imageUrl)
+        return generationComplete(data.providerLabel)
+      }
+      if (!data.jobId) throw new Error('Réponse de génération incomplète.')
+      await pollGeneration(data.jobId, data.providerLabel || '')
+    } catch (error) {
+      setGenerationState(error.message || 'Petite interruption… réessaie dans un instant.', false)
+      showToast(error.message || 'Petite interruption… réessaie dans un instant.', true)
+    } finally {
+      byId('generate-art').disabled = false
+    }
+  }
+
+  async function pollGeneration(jobId, providerLabel) {
+    for (var attempt = 0; attempt < 90; attempt++) {
+      await delay(attempt < 4 ? 1400 : 2200)
+      var response = await fetch('/api/cover/status?id=' + encodeURIComponent(jobId), { headers: authHeaders() })
+      var data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'La génération a été interrompue.')
+      if (data.status === 'ready' && data.imageUrl) {
+        await loadProtectedArtwork(data.imageUrl)
+        return generationComplete(data.providerLabel || providerLabel)
+      }
+      if (data.status === 'failed') throw new Error(data.error || 'L’image n’a pas pu être créée.')
+      setGenerationState('Création en cours' + '.'.repeat((attempt % 3) + 1), true)
+    }
+    throw new Error('La création prend plus de temps que prévu. Réessaie dans un instant.')
+  }
+
+  async function loadProtectedArtwork(url) {
+    var response = await fetch(url, { headers: authHeaders() })
+    if (!response.ok) throw new Error('L’image a été créée, mais son chargement a échoué.')
+    var blob = await response.blob()
+    if (!blob.type.startsWith('image/')) throw new Error('Le fichier reçu n’est pas une image valide.')
+    await loadArtworkBlob(blob)
+  }
+
+  async function loadArtworkBlob(blob) {
+    if (blob.size > MAX_IMAGE_BYTES) throw new Error('L’image dépasse 15 Mo. Choisis un fichier plus léger.')
+    if (artworkObjectUrl) URL.revokeObjectURL(artworkObjectUrl)
+    artworkObjectUrl = URL.createObjectURL(blob)
+    artworkImage = await new Promise(function(resolve, reject) {
+      var image = new Image()
+      image.onload = function() { resolve(image) }
+      image.onerror = function() { reject(new Error('Impossible de lire cette image.')) }
+      image.src = artworkObjectUrl
+    })
+    renderPreviews()
+  }
+
+  function generationComplete(providerLabel) {
+    setGenerationState('Illustration créée' + (providerLabel ? ' avec ' + providerLabel : '') + '. Elle est prête à être composée.', false)
+    byId('provider-pill').classList.add('ready')
+    byId('provider-pill').textContent = 'Illustration active' + (providerLabel ? ' · ' + providerLabel : '')
+    showToast('L’illustration est prête ✦')
+  }
+
+  function chooseLocalFile() { byId('art-file').click() }
+
+  async function handleLocalFile(event) {
+    var file = event.target.files && event.target.files[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) return showToast('Choisis une image PNG, JPG ou WebP.', true)
+    try {
+      await loadArtworkBlob(file)
+      byId('provider-pill').classList.add('ready')
+      byId('provider-pill').textContent = 'Illustration importée · ' + file.name
+      setGenerationState('Ton illustration est chargée. Ajuste maintenant le titre et les couleurs.', false)
+      showToast('Image importée avec succès.')
+    } catch (error) { showToast(error.message, true) }
+    event.target.value = ''
+  }
+
+  function setGenerationState(message, loading) {
+    var el = byId('generation-state')
+    el.innerHTML = ''
+    if (loading) { var spinner = document.createElement('span'); spinner.className = 'spinner'; el.appendChild(spinner) }
+    var text = document.createElement('span'); text.textContent = message; el.appendChild(text)
+  }
+
+  function delay(ms) { return new Promise(function(resolve) { setTimeout(resolve, ms) }) }
+
+  function switchPreview(tab) {
+    document.querySelectorAll('.tab').forEach(function(button) { button.classList.toggle('active', button.getAttribute('data-tab') === tab) })
+    byId('front-wrap').classList.toggle('active', tab === 'front')
+    byId('wrap-wrap').classList.toggle('active', tab === 'wrap')
+  }
+
+  function slug(text) {
+    return String(text || 'couverture').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70) || 'couverture'
+  }
+
+  function canvasToBlob(canvas, type, quality) {
+    return new Promise(function(resolve, reject) {
+      canvas.toBlob(function(blob) { blob ? resolve(blob) : reject(new Error('Impossible de préparer le fichier.')) }, type, quality)
+    })
+  }
+
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob)
+    var a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(function() { URL.revokeObjectURL(url) }, 2500)
+  }
+
+  async function exportEbook() {
+    setExportBusy(true, 'Préparation du JPG ebook…')
+    try {
+      await document.fonts.ready
+      var canvas = document.createElement('canvas')
+      drawFront(canvas, true)
+      var blob = await canvasToBlob(canvas, 'image/jpeg', .95)
+      downloadBlob(blob, slug(getState().title) + '-ebook-1600x2560.jpg')
+      showToast('JPG ebook téléchargé.')
+    } catch (error) { showToast(error.message, true) }
+    finally { setExportBusy(false) }
+  }
+
+  async function exportPrintPng() {
+    setExportBusy(true, 'Préparation du PNG à 300 ppp…')
+    try {
+      await document.fonts.ready
+      var canvas = document.createElement('canvas')
+      drawWrap(canvas, PRINT_DPI, false)
+      var blob = await canvasToBlob(canvas, 'image/png')
+      downloadBlob(blob, slug(getState().title) + '-couverture-complete-300ppp.png')
+      showToast('PNG de la couverture complète téléchargé.')
+    } catch (error) { showToast(error.message, true) }
+    finally { setExportBusy(false) }
+  }
+
+  async function exportPrintPdf() {
+    setExportBusy(true, 'Préparation du PDF KDP…')
+    try {
+      await document.fonts.ready
+      var s = getState(), c = s.calculation
+      var canvas = document.createElement('canvas')
+      drawWrap(canvas, PRINT_DPI, false)
+      var jpegBlob = await canvasToBlob(canvas, 'image/jpeg', .96)
+      var jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer())
+      var pdfBytes = buildSingleImagePdf(jpegBytes, canvas.width, canvas.height, c.width * 72, c.height * 72)
+      downloadBlob(new Blob([pdfBytes], { type: 'application/pdf' }), slug(s.title) + '-couverture-kdp.pdf')
+      showToast('PDF aux dimensions KDP téléchargé. Vérifie-le dans l’aperçu KDP.')
+    } catch (error) { showToast(error.message, true) }
+    finally { setExportBusy(false) }
+  }
+
+  function buildSingleImagePdf(jpegBytes, imageWidth, imageHeight, pageWidth, pageHeight) {
+    var enc = new TextEncoder()
+    var chunks = []
+    var offsets = [0]
+    var length = 0
+    function push(value) {
+      var bytes = typeof value === 'string' ? enc.encode(value) : value
+      chunks.push(bytes); length += bytes.length
+    }
+    function object(number, before, binary, after) {
+      offsets[number] = length
+      push(number + ' 0 obj\n' + before)
+      if (binary) push(binary)
+      push((after || '') + '\nendobj\n')
+    }
+    push('%PDF-1.4\n%NyXia\n')
+    object(1, '<< /Type /Catalog /Pages 2 0 R >>')
+    object(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>')
+    object(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pageWidth.toFixed(4) + ' ' + pageHeight.toFixed(4) + '] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>')
+    object(4, '<< /Type /XObject /Subtype /Image /Width ' + imageWidth + ' /Height ' + imageHeight + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpegBytes.length + ' >>\nstream\n', jpegBytes, '\nendstream')
+    var content = 'q\n' + pageWidth.toFixed(4) + ' 0 0 ' + pageHeight.toFixed(4) + ' 0 0 cm\n/Im0 Do\nQ\n'
+    var contentBytes = enc.encode(content)
+    object(5, '<< /Length ' + contentBytes.length + ' >>\nstream\n', contentBytes, 'endstream')
+    var xref = length
+    push('xref\n0 6\n0000000000 65535 f \n')
+    for (var i = 1; i <= 5; i++) push(String(offsets[i]).padStart(10, '0') + ' 00000 n \n')
+    push('trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF')
+    var output = new Uint8Array(length)
+    var cursor = 0
+    chunks.forEach(function(chunk) { output.set(chunk, cursor); cursor += chunk.length })
+    return output
+  }
+
+  function exportSpecifications() {
+    var s = getState(), c = s.calculation
+    var interiorLabel = c.interior === 'bw' ? 'Noir et blanc' : (c.interior === 'standard-color' ? 'Couleur standard' : 'Couleur premium')
+    var lines = [
+      'FICHE DE COUVERTURE — STUDIO NYXIA / PORTAIL ALEX',
+      '',
+      'Titre : ' + s.title,
+      'Auteur : ' + s.author,
+      'Genre : ' + s.genre,
+      '',
+      'FORMAT PAPIER',
+      'Format fini : ' + formatNumber(c.trimWidth, 2) + ' × ' + formatNumber(c.trimHeight, 2) + ' po',
+      'Pages : ' + c.pages,
+      'Intérieur : ' + interiorLabel,
+      'Papier : ' + (c.paper === 'cream' ? 'Crème' : 'Blanc'),
+      'Facteur de tranche : ' + c.factor + ' po par page',
+      'Tranche : ' + formatNumber(c.spine, 4) + ' po',
+      'Fond perdu : 0,125 po sur les bords extérieurs',
+      'Couverture complète : ' + formatNumber(c.width, 4) + ' × ' + formatNumber(c.height, 4) + ' po',
+      'Fichier à 300 ppp : ' + c.pixelWidth + ' × ' + c.pixelHeight + ' px',
+      'Texte sur la tranche : ' + (c.spineTextAllowed ? 'Permis (plus de 79 pages)' : 'Retiré (79 pages ou moins)'),
+      '',
+      'EBOOK',
+      'JPG : 1600 × 2560 px, format vertical',
+      '',
+      'Vérification finale : importer le PDF dans l’outil Aperçu avant impression de KDP avant de publier.'
+    ]
+    downloadBlob(new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' }), slug(s.title) + '-dimensions-kdp.txt')
+    showToast('Fiche des dimensions téléchargée.')
+  }
+
+  function setExportBusy(busy, message) {
+    ['export-ebook', 'export-pdf', 'export-png', 'export-spec'].forEach(function(id) { byId(id).disabled = busy || (currentFormat() === 'ebook' && (id === 'export-pdf' || id === 'export-png')) })
+    if (busy && message) showToast(message)
+  }
+
+  function showToast(message, error) {
+    var toast = byId('toast')
+    toast.textContent = message; toast.classList.toggle('error', !!error); toast.classList.add('show')
+    clearTimeout(showToast.timer)
+    showToast.timer = setTimeout(function() { toast.classList.remove('show') }, 3800)
+  }
+
+  function serializableDraft() {
+    var ids = ['book-title','book-subtitle','book-author','book-genre','back-text','trim-size','page-count','interior-type','paper-type','art-prompt','font-style','text-color','accent-color']
+    var values = {}; ids.forEach(function(id) { values[id] = byId(id).value })
+    values.format = currentFormat(); values.quality = currentQuality(); values.spine = byId('show-spine-text').checked; values.guides = byId('show-guides').checked; values.ambiance = ambianceIndex
+    return values
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer)
+    byId('saved-state').textContent = 'Modification…'
+    saveTimer = setTimeout(function() {
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(serializableDraft())); byId('saved-state').textContent = 'Sauvegardé' }
+      catch (_) { byId('saved-state').textContent = 'Prêt' }
+    }, 500)
+  }
+
+  function loadDraft() {
+    try {
+      var raw = localStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      var d = JSON.parse(raw)
+      Object.keys(d).forEach(function(id) { if (byId(id) && typeof d[id] === 'string') byId(id).value = d[id] })
+      var f = document.querySelector('input[name="book-format"][value="' + d.format + '"]'); if (f) f.checked = true
+      var q = document.querySelector('input[name="quality"][value="' + d.quality + '"]'); if (q) q.checked = true
+      if (typeof d.spine === 'boolean') byId('show-spine-text').checked = d.spine
+      if (typeof d.guides === 'boolean') byId('show-guides').checked = d.guides
+      if (Number.isFinite(Number(d.ambiance))) ambianceIndex = Number(d.ambiance)
+    } catch (_) {}
+  }
+
+  function clearDraft() {
+    if (!confirm('Recommencer une nouvelle couverture? Les textes actuels seront effacés.')) return
+    localStorage.removeItem(DRAFT_KEY)
+    location.reload()
+  }
+
+  function bindEvents() {
+    document.querySelectorAll('input, select, textarea').forEach(function(el) {
+      el.addEventListener('input', function() {
+        if (el.id === 'interior-type') syncPaperOptions()
+        if (el.name === 'book-format') syncFormatOptions()
+        scheduleRender()
+      })
+      el.addEventListener('change', function() {
+        if (el.id === 'interior-type') syncPaperOptions()
+        if (el.name === 'book-format') syncFormatOptions()
+        scheduleRender()
+      })
+    })
+    document.querySelectorAll('.tab').forEach(function(tab) { tab.addEventListener('click', function() { switchPreview(tab.getAttribute('data-tab')) }) })
+    byId('suggest-prompt').addEventListener('click', preparePrompt)
+    byId('change-ambiance').addEventListener('click', function() { ambianceIndex = (ambianceIndex + 1) % AMBIANCES.length; artworkImage = null; if (artworkObjectUrl) URL.revokeObjectURL(artworkObjectUrl); artworkObjectUrl = ''; byId('provider-pill').textContent = 'Ambiance locale active'; scheduleRender() })
+    byId('generate-art').addEventListener('click', startGeneration)
+    byId('upload-art').addEventListener('click', chooseLocalFile)
+    byId('art-file').addEventListener('change', handleLocalFile)
+    byId('export-ebook').addEventListener('click', exportEbook)
+    byId('export-pdf').addEventListener('click', exportPrintPdf)
+    byId('export-png').addEventListener('click', exportPrintPng)
+    byId('export-spec').addEventListener('click', exportSpecifications)
+    byId('clear-draft').addEventListener('click', clearDraft)
+  }
+
+  async function init() {
+    loadDraft()
+    bindEvents()
+    syncPaperOptions()
+    syncFormatOptions()
+    if (!byId('art-prompt').value.trim()) byId('art-prompt').value = buildSuggestedPrompt()
+    await document.fonts.ready.catch(function(){})
+    renderPreviews()
+    initializeAuth()
+  }
+
+  document.addEventListener('DOMContentLoaded', init)
+  </script>
+</body>
+</html>
