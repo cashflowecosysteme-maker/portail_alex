@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="/FavIcon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boîte à outils NyXia — Portail Alex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090714;
+      --panel: rgba(20, 15, 39, 0.94);
+      --panel-2: rgba(31, 23, 57, 0.92);
+      --line: rgba(167, 126, 255, 0.18);
+      --line-strong: rgba(167, 126, 255, 0.38);
+      --purple: #9a6bff;
+      --purple-2: #6f45dc;
+      --lavender: #c8b6ff;
+      --gold: #e9c46a;
+      --green: #63d8ac;
+      --red: #ff7b93;
+      --text: #f7f3ff;
+      --muted: #aaa1bd;
+      --muted-2: #80778f;
+      --shadow: 0 22px 65px rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; }
+    body { overflow-x: hidden; }
+    #starry-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    button, input, select, textarea { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+    a { color: #d9caff; }
+
+    .page { position: relative; z-index: 1; min-height: 100vh; padding: 22px; }
+    .topbar {
+      max-width: 1280px; margin: 0 auto 18px; padding: 18px 22px; display: flex; align-items: center;
+      justify-content: space-between; gap: 18px; border: 1px solid var(--line); border-radius: 18px;
+      background: linear-gradient(135deg, rgba(27, 20, 49, 0.97), rgba(16, 12, 31, 0.94)); box-shadow: var(--shadow);
+    }
+    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand img { width: 50px; height: 50px; border-radius: 15px; object-fit: cover; border: 1px solid rgba(233, 196, 106, 0.42); }
+    .brand h1 { margin: 0; font-family: 'Cormorant Garamond', serif; font-size: clamp(25px, 3vw, 36px); line-height: 1; }
+    .brand p { margin: 5px 0 0; font-size: 12px; color: var(--muted); }
+    .state-pill { padding: 8px 11px; border-radius: 999px; border: 1px solid rgba(99,216,172,.24); background: rgba(99,216,172,.07); color: #bfeeda; font-size: 11px; white-space: nowrap; }
+
+    .layout { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .tool-list, .workspace { border: 1px solid var(--line); border-radius: 20px; background: var(--panel); box-shadow: var(--shadow); overflow: hidden; }
+    .intro { padding: 21px 22px 18px; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, rgba(154,107,255,.13), rgba(233,196,106,.06)); }
+    .intro-badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; color: #e7d8ff; background: rgba(154,107,255,.14); border: 1px solid rgba(154,107,255,.25); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .intro h2 { margin: 12px 0 7px; font-family: 'Cormorant Garamond', serif; font-size: 28px; }
+    .intro p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+
+    .cards { display: grid; gap: 9px; padding: 14px; }
+    .tool-card { width: 100%; display: flex; gap: 11px; align-items: flex-start; text-align: left; padding: 13px; border-radius: 14px; border: 1px solid rgba(167,126,255,.14); background: rgba(10,8,21,.52); color: var(--muted); cursor: pointer; transition: .2s; }
+    .tool-card:hover, .tool-card.active { transform: translateY(-1px); border-color: rgba(154,107,255,.45); background: rgba(154,107,255,.13); color: #fff; }
+    .tool-card.active { box-shadow: 0 0 0 3px rgba(154,107,255,.08); }
+    .tool-icon { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(154,107,255,.28), rgba(233,196,106,.12)); color: #fff; }
+    .tool-name { display: block; color: inherit; font-size: 13px; font-weight: 750; }
+    .tool-sub { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+
+    .workspace-head { padding: 21px 22px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+    .workspace-head h2 { margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 30px; }
+    .workspace-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .workspace-body { padding: 22px; }
+    .tool-panel { display: none; }
+    .tool-panel.active { display: block; animation: panelIn .22s ease; }
+    @keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .field { margin-bottom: 14px; }
+    label { display: block; margin: 0 0 6px; color: #ded6ed; font-size: 11px; font-weight: 700; }
+    input, select, textarea {
+      width: 100%; border: 1px solid var(--line); border-radius: 12px; background: rgba(8,6,17,.72); color: var(--text);
+      outline: none; padding: 12px; transition: border-color .2s, box-shadow .2s, background .2s;
+    }
+    textarea { min-height: 120px; resize: vertical; line-height: 1.55; }
+    input:focus, select:focus, textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(154,107,255,.12); background: rgba(12,9,24,.94); }
+    select option { background: #151025; }
+    .hint { margin-top: 7px; color: var(--muted-2); font-size: 10px; line-height: 1.45; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; margin: 14px 0 0; }
+    .btn { border: 0; border-radius: 12px; padding: 11px 15px; cursor: pointer; color: #fff; font-weight: 750; font-size: 12px; transition: transform .18s, box-shadow .18s, opacity .18s; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: .48; cursor: not-allowed; }
+    .btn-primary { background: linear-gradient(135deg, #a676ff, #6b43d2); box-shadow: 0 9px 22px rgba(111,69,220,.25); }
+    .btn-soft { background: rgba(154,107,255,.12); border: 1px solid rgba(154,107,255,.24); color: #d9caff; }
+    .btn-gold { color: #241629; background: linear-gradient(135deg, #f3dc98, #d9ad4f); box-shadow: 0 9px 22px rgba(217,173,79,.18); }
+    .status { min-height: 20px; color: var(--muted); font-size: 11px; display: inline-flex; align-items: center; gap: 8px; }
+    .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(154,107,255,.2); border-top-color: var(--purple); animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result { margin-top: 18px; display: grid; gap: 12px; }
+    .empty { padding: 18px; border-radius: 15px; border: 1px dashed rgba(167,126,255,.24); background: rgba(8,6,17,.38); color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .result-card { border: 1px solid rgba(167,126,255,.17); border-radius: 15px; background: rgba(10,8,21,.58); padding: 15px; }
+    .result-card h3 { margin: 0 0 7px; font-size: 15px; color: #fff; }
+    .result-card p { margin: 6px 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .tag { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 999px; background: rgba(154,107,255,.12); border: 1px solid rgba(154,107,255,.2); color: #d9caff; font-size: 10px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
+    .metric { padding: 13px; border: 1px solid rgba(233,196,106,.2); border-radius: 14px; background: rgba(233,196,106,.055); min-width: 0; }
+    .metric strong { display: block; color: #f5dc98; font-size: 21px; line-height: 1.1; }
+    .metric span { display: block; color: var(--muted); font-size: 10px; margin-top: 5px; }
+    .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 13px; }
+    .image-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; border: 1px solid rgba(167,126,255,.16); background: rgba(8,6,17,.5); }
+    .image-card .result-card { padding: 10px; }
+    .timeline-list { display: grid; gap: 9px; }
+    .timeline-item { display: grid; grid-template-columns: 108px 1fr; gap: 11px; align-items: start; }
+    .timeline-date { color: #f5dc98; font-size: 11px; font-weight: 800; }
+    .toast { position: fixed; z-index: 50; left: 50%; bottom: 22px; transform: translate(-50%, 20px); min-width: 250px; max-width: min(520px, calc(100vw - 30px)); padding: 11px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: rgba(15,11,28,.98); box-shadow: var(--shadow); color: #fff; font-size: 11px; opacity: 0; pointer-events: none; transition: .25s; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .toast.error { border-color: rgba(255,123,147,.45); }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .page { padding: 10px; }
+      .topbar, .workspace-head { flex-direction: column; align-items: flex-start; }
+      .brand img { width: 42px; height: 42px; }
+      .cards, .grid-2, .metric-grid { grid-template-columns: 1fr; }
+      .workspace-body, .workspace-head, .intro { padding: 17px 15px; }
+      .timeline-item { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="starry-canvas"></canvas>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/NyXia.png" alt="NyXia">
+        <div>
+          <h1>Boîte à outils NyXia</h1>
+          <p>Recherche, correction et création pour avancer sans te disperser.</p>
+        </div>
+      </div>
+      <span class="state-pill" id="auth-state">Vérification en cours...</span>
+    </header>
+
+    <main class="layout">
+      <aside class="tool-list" aria-label="Outils d'auteur">
+        <div class="intro">
+          <span class="intro-badge">✦ Atelier d'Alex</span>
+          <h2>Une fonction à la fois</h2>
+          <p>Choisis une carte. NyXia ouvre seulement l'outil utile maintenant, pour garder ton espace clair.</p>
+        </div>
+        <div class="cards" id="tool-cards"></div>
+      </aside>
+
+      <section class="workspace" aria-live="polite">
+        <div class="workspace-head">
+          <div>
+            <h2 id="workspace-title">Mon titre existe-t-il déjà?</h2>
+            <p id="workspace-subtitle">Recherche de titres semblables pour mieux positionner ton projet.</p>
+          </div>
+          <button class="btn btn-soft" type="button" onclick="clearActiveTool()">Effacer l'outil</button>
+        </div>
+        <div class="workspace-body">
+          <div class="tool-panel active" id="panel-titles">
+            <div class="field"><label for="title-query">Titre à vérifier</label><input id="title-query" type="text" placeholder="Ex. La chambre des secrets oubliés"></div>
+            <div class="btn-row"><button class="btn btn-primary" onclick="runRemoteTool('titles')">Chercher les titres semblables</button><span class="status" id="status-titles"></span></div>
+            <div class="result" id="result-titles"><div class="empty">Les résultats s'afficheront ici, directement dans le portail.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-comparables">
+            <div class="grid-2">
+              <div class="field"><label for="comp-query">Thème, genre, auteur ou ISBN</label><input id="comp-query" type="text" placeholder="Ex. fantasy initiatique, sorcières, Québec"></div>
+              <div class="field"><label for="comp-type">Angle de recherche</label><select id="comp-type"><option value="general">Recherche générale</option><option value="theme">Thème ou genre</option><option value="author">Auteur</option><option value="isbn">ISBN</option></select></div>
+            </div>
+            <div class="btn-row"><button class="btn btn-primary" onclick="runRemoteTool('comparables')">Trouver des livres comparables</button><span class="status" id="status-comparables"></span></div>
+            <div class="result" id="result-comparables"><div class="empty">NyXia rassemblera des références utiles sans t'envoyer ailleurs.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-word">
+            <div class="field"><label for="word-query">Mot à explorer</label><input id="word-query" type="text" placeholder="Ex. liminal, courage, alchimie"></div>
+            <div class="btn-row"><button class="btn btn-primary" onclick="runRemoteTool('word')">Explorer le mot juste</button><span class="status" id="status-word"></span></div>
+            <div class="result" id="result-word"><div class="empty">Définitions, synonymes, antonymes et origine seront regroupés ici.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-correct">
+            <div class="field"><label for="correct-text">Texte à corriger</label><textarea id="correct-text" placeholder="Colle ici ton paragraphe, ta scène ou ta description..."></textarea><div class="hint">Le texte revient corrigé avec une courte note de révision.</div></div>
+            <div class="btn-row"><button class="btn btn-primary" onclick="runRemoteTool('correct')">Corriger avec NyXia</button><span class="status" id="status-correct"></span></div>
+            <div class="result" id="result-correct"><div class="empty">Ta version corrigée apparaîtra ici.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-muse">
+            <div class="grid-2">
+              <div class="field"><label for="muse-query">Image recherchée</label><input id="muse-query" type="text" placeholder="Ex. forêt brumeuse, bureau ancien, portail lumineux"></div>
+              <div class="field"><label for="muse-format">Format</label><select id="muse-format"><option value="">Tous</option><option value="portrait">Portrait</option><option value="landscape">Paysage</option><option value="square">Carré</option></select></div>
+            </div>
+            <div class="btn-row"><button class="btn btn-primary" onclick="runRemoteTool('muse')">Chercher l'inspiration visuelle</button><span class="status" id="status-muse"></span></div>
+            <div class="result" id="result-muse"><div class="empty">NyXia affichera des images avec les informations d'attribution nécessaires.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-character">
+            <div class="grid-2">
+              <div class="field"><label for="character-genre">Genre ou univers</label><input id="character-genre" type="text" placeholder="Ex. polar cosy, fantasy sombre, romance contemporaine"></div>
+              <div class="field"><label for="character-role">Rôle dans l'histoire</label><input id="character-role" type="text" placeholder="Ex. héroïne, mentor, suspect, rival"></div>
+            </div>
+            <div class="field"><label for="character-notes">Contraintes ou idées déjà présentes</label><textarea id="character-notes" placeholder="Âge, époque, secret, relation, métier, énergie du personnage..."></textarea></div>
+            <div class="btn-row"><button class="btn btn-primary" onclick="runRemoteTool('character')">Créer un personnage</button><span class="status" id="status-character"></span></div>
+            <div class="result" id="result-character"><div class="empty">NyXia générera noms, traits, forces, contradictions, secrets et relations.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-counter">
+            <div class="grid-2">
+              <div class="field"><label for="counter-text">Manuscrit ou extrait</label><textarea id="counter-text" placeholder="Colle ton texte ici..."></textarea></div>
+              <div>
+                <div class="field"><label for="counter-goal">Objectif de mots</label><input id="counter-goal" type="number" min="1" value="50000"></div>
+                <div class="field"><label for="counter-page">Mots par page estimée</label><input id="counter-page" type="number" min="100" value="250"></div>
+              </div>
+            </div>
+            <div class="btn-row"><button class="btn btn-gold" onclick="runCounter()">Calculer mon manuscrit</button></div>
+            <div class="result" id="result-counter"><div class="empty">Le compteur fonctionne localement dans ton navigateur.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-timeline">
+            <div class="field"><label for="timeline-events">Événements de l'histoire</label><textarea id="timeline-events" placeholder="Un événement par ligne. Exemple : 1998-04-12 | Naissance de Mara | Mara a 0 an&#10;2016 | Mara découvre la lettre | Mara a 18 ans"></textarea><div class="hint">NyXia trie les dates lisibles et signale les lignes qui semblent incomplètes.</div></div>
+            <div class="btn-row"><button class="btn btn-gold" onclick="runTimeline()">Analyser la chronologie</button></div>
+            <div class="result" id="result-timeline"><div class="empty">La chronologie fonctionne localement pour garder ton fil clair.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-inspiration">
+            <div class="grid-2">
+              <div class="field"><label for="inspiration-genre">Genre</label><input id="inspiration-genre" type="text" placeholder="Ex. mystère, fantasy, romance, jeunesse"></div>
+              <div class="field"><label for="inspiration-tone">Ambiance</label><input id="inspiration-tone" type="text" placeholder="Ex. lumineux, inquiétant, drôle, intime"></div>
+            </div>
+            <div class="btn-row"><button class="btn btn-gold" onclick="runInspiration()">Déclencher une idée</button></div>
+            <div class="result" id="result-inspiration"><div class="empty">Lieu, objet, conflit et retournement seront générés localement.</div></div>
+          </div>
+
+          <div class="tool-panel" id="panel-library">
+            <div class="grid-2">
+              <div class="field"><label for="library-query">Livre, référence, thème ou auteur</label><input id="library-query" type="text" placeholder="Ex. mythologie, enquête impossible, héroïne rebelle"></div>
+              <div class="field"><label for="library-kind">Type d'inspiration</label><select id="library-kind"><option value="general">Toutes les références</option><option value="classic">Œuvres classiques</option><option value="reference">Références utiles</option></select></div>
+            </div>
+            <div class="btn-row"><button class="btn btn-primary" onclick="runRemoteTool('library')">Explorer la bibliothèque NyXia</button><span class="status" id="status-library"></span></div>
+            <div class="result" id="result-library"><div class="empty">Les pistes d'inspiration apparaîtront ici, sans changer de page.</div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script src="/starry-bg.js" defer></script>
+  <script>
+    var ERROR_TEXT = 'Petite interruption... réessaies dans un instant 💜'
+    var sessionToken = ''
+    var activeTool = 'titles'
+    var tools = [
+      ['titles', '🔎', 'Mon titre existe-t-il déjà?', 'Recherche de titres semblables.'],
+      ['comparables', '📚', 'Livres comparables', 'Recherche par thème, genre, auteur ou ISBN.'],
+      ['word', '✒️', 'Le mot juste', 'Définitions, synonymes, antonymes et origine.'],
+      ['correct', '🪄', 'Correcteur NyXia', 'Orthographe, grammaire, syntaxe et typographie.'],
+      ['muse', '🖼️', 'Muse visuelle', 'Images réutilisables et attribution.'],
+      ['character', '🎭', 'Créateur de personnages', 'Noms, traits, secrets et relations.'],
+      ['counter', '📏', 'Compteur de manuscrit', 'Mots, pages, lecture et progression.'],
+      ['timeline', '🗓️', 'Chronologie d’histoire', 'Dates, âges, événements et incohérences.'],
+      ['inspiration', '✨', 'Déclencheur d’inspiration', 'Lieux, objets, conflits et retournements.'],
+      ['library', '🏛️', 'Bibliothèque d’inspiration NyXia', 'Livres, références et classiques utiles.']
+    ]
+
+    function byId(id) { return document.getElementById(id) }
+    function escapeHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, function(c) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+      })
+    }
+    function getUrlToken() {
+      try { return new URLSearchParams(location.search).get('t') || '' } catch (_) { return '' }
+    }
+    function authHeaders(jsonBody) {
+      var h = { 'Authorization': 'Bearer ' + sessionToken }
+      if (jsonBody) h['Content-Type'] = 'application/json'
+      return h
+    }
+    function showToast(message, error) {
+      var t = byId('toast')
+      t.textContent = message || ERROR_TEXT
+      t.classList.toggle('error', !!error)
+      t.classList.add('show')
+      clearTimeout(showToast.timer)
+      showToast.timer = setTimeout(function() { t.classList.remove('show') }, 3200)
+    }
+    function setStatus(key, message, loading) {
+      var el = byId('status-' + key)
+      if (!el) return
+      el.innerHTML = loading ? '<span class="spinner"></span>' + escapeHtml(message || 'NyXia cherche...') : escapeHtml(message || '')
+    }
+    function renderCards() {
+      byId('tool-cards').innerHTML = tools.map(function(t) {
+        return '<button type="button" class="tool-card ' + (t[0] === activeTool ? 'active' : '') + '" onclick="openTool(\'' + t[0] + '\')">' +
+          '<span class="tool-icon">' + t[1] + '</span><span><span class="tool-name">' + escapeHtml(t[2]) + '</span><span class="tool-sub">' + escapeHtml(t[3]) + '</span></span></button>'
+      }).join('')
+    }
+    function openTool(key) {
+      activeTool = key
+      document.querySelectorAll('.tool-panel').forEach(function(p) { p.classList.remove('active') })
+      var panel = byId('panel-' + key)
+      if (panel) panel.classList.add('active')
+      var tool = tools.find(function(t) { return t[0] === key }) || tools[0]
+      byId('workspace-title').textContent = tool[2]
+      byId('workspace-subtitle').textContent = tool[3]
+      renderCards()
+    }
+    function clearActiveTool() {
+      var panel = byId('panel-' + activeTool)
+      if (!panel) return
+      panel.querySelectorAll('input, textarea').forEach(function(el) {
+        if (el.type !== 'number') el.value = ''
+      })
+      var result = byId('result-' + activeTool)
+      if (result) result.innerHTML = '<div class="empty">Outil effacé. Tu peux recommencer doucement.</div>'
+    }
+    async function initializeAuth() {
+      var fromUrl = getUrlToken()
+      if (fromUrl) {
+        sessionStorage.setItem('nyxia_token', fromUrl)
+        sessionToken = fromUrl
+      } else {
+        sessionToken = sessionStorage.getItem('nyxia_token') || ''
+      }
+      if (!sessionToken) return redirectToLogin()
+      try {
+        var response = await fetch('/api/check-auth', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: sessionToken })
+        })
+        var data = await response.json()
+        if (!data.valid) return redirectToLogin()
+        byId('auth-state').textContent = 'Outils prêts'
+      } catch (_) {
+        byId('auth-state').textContent = ERROR_TEXT
+        showToast(ERROR_TEXT, true)
+      }
+    }
+    function redirectToLogin() {
+      try { window.top.location.href = '/login.html' } catch (_) { location.href = '/login.html' }
+    }
+
+    function payloadFor(key) {
+      if (key === 'titles') return { query: byId('title-query').value.trim() }
+      if (key === 'comparables') return { query: byId('comp-query').value.trim(), type: byId('comp-type').value }
+      if (key === 'word') return { word: byId('word-query').value.trim() }
+      if (key === 'correct') return { text: byId('correct-text').value.trim() }
+      if (key === 'muse') return { query: byId('muse-query').value.trim(), format: byId('muse-format').value }
+      if (key === 'character') return { genre: byId('character-genre').value.trim(), role: byId('character-role').value.trim(), notes: byId('character-notes').value.trim() }
+      if (key === 'library') return { query: byId('library-query').value.trim(), kind: byId('library-kind').value }
+      return {}
+    }
+    async function runRemoteTool(key) {
+      var payload = payloadFor(key)
+      var hasContent = Object.keys(payload).some(function(k) { return String(payload[k] || '').trim() })
+      if (!hasContent) return showToast('Ajoute une information avant de lancer l’outil.', true)
+      setStatus(key, 'NyXia cherche...', true)
+      try {
+        var response = await fetch('/api/author/' + key, {
+          method: 'POST', headers: authHeaders(true), body: JSON.stringify(Object.assign({ token: sessionToken }, payload))
+        })
+        var data = await response.json()
+        if (!response.ok) throw new Error(data.error || ERROR_TEXT)
+        renderRemoteResult(key, data)
+        setStatus(key, 'Terminé.', false)
+      } catch (error) {
+        byId('result-' + key).innerHTML = '<div class="empty">' + escapeHtml(error.message || ERROR_TEXT) + '</div>'
+        setStatus(key, '', false)
+        showToast(error.message || ERROR_TEXT, true)
+      }
+    }
+    function renderRemoteResult(key, data) {
+      if (key === 'correct') {
+        byId('result-correct').innerHTML = '<div class="result-card"><h3>Version corrigée</h3><p style="white-space:pre-wrap">' + escapeHtml(data.corrected || '') + '</p></div>' +
+          '<div class="result-card"><h3>Note de révision</h3><p>' + escapeHtml(data.note || 'Texte relu par NyXia.') + '</p></div>'
+        return
+      }
+      if (key === 'character') {
+        var c = data.character || {}
+        byId('result-character').innerHTML = '<div class="result-card"><h3>' + escapeHtml(c.name || 'Personnage NyXia') + '</h3><p>' + escapeHtml(c.summary || '') + '</p><div class="meta">' + (c.tags || []).map(tag).join('') + '</div></div>' +
+          sections([['Forces', c.strengths], ['Contradictions', c.contradictions], ['Secrets', c.secrets], ['Relations', c.relationships]])
+        return
+      }
+      if (key === 'muse') {
+        var images = data.results || []
+        byId('result-muse').innerHTML = images.length ? '<div class="image-grid">' + images.map(function(item) {
+          return '<div class="image-card"><img src="' + escapeHtml(item.previewUrl || '') + '" alt="' + escapeHtml(item.title || 'Inspiration visuelle') + '"><div class="result-card"><h3>' + escapeHtml(item.title || 'Image NyXia') + '</h3><p>' + escapeHtml(item.attribution || 'Attribution à conserver selon la fiche.') + '</p>' + (item.pageUrl ? '<p><a href="' + escapeHtml(item.pageUrl) + '" target="_blank" rel="noopener">Voir la fiche</a></p>' : '') + '</div></div>'
+        }).join('') + '</div>' : '<div class="empty">Aucune image trouvée pour cette recherche.</div>'
+        return
+      }
+      var items = data.results || []
+      byId('result-' + key).innerHTML = items.length ? items.map(function(item) {
+        var meta = []
+        if (item.author) meta.push(item.author)
+        if (item.year) meta.push(item.year)
+        if (item.language) meta.push(item.language)
+        if (item.type) meta.push(item.type)
+        return '<div class="result-card"><h3>' + escapeHtml(item.title || item.word || 'Résultat NyXia') + '</h3><p>' + escapeHtml(item.description || item.summary || '') + '</p><div class="meta">' + meta.map(tag).join('') + '</div></div>'
+      }).join('') : '<div class="empty">' + escapeHtml(data.message || 'Aucun résultat trouvé pour le moment.') + '</div>'
+    }
+    function tag(value) { return '<span class="tag">' + escapeHtml(value) + '</span>' }
+    function sections(groups) {
+      return groups.map(function(pair) {
+        var arr = Array.isArray(pair[1]) ? pair[1] : []
+        return '<div class="result-card"><h3>' + escapeHtml(pair[0]) + '</h3><p>' + escapeHtml(arr.join(' · ') || 'À préciser.') + '</p></div>'
+      }).join('')
+    }
+    function runCounter() {
+      var text = byId('counter-text').value.trim()
+      var goal = Math.max(1, Number(byId('counter-goal').value || 50000))
+      var perPage = Math.max(100, Number(byId('counter-page').value || 250))
+      var words = text ? (text.match(/\b[\wÀ-ÿ’'-]+\b/g) || []).length : 0
+      var chars = text.length
+      var pages = Math.ceil(words / perPage)
+      var minutes = Math.max(1, Math.ceil(words / 220))
+      var progress = Math.min(100, Math.round((words / goal) * 100))
+      byId('result-counter').innerHTML = '<div class="metric-grid">' +
+        metric(words, 'mots') + metric(pages, 'pages estimées') + metric(minutes + ' min', 'temps de lecture') + metric(progress + ' %', 'progression') +
+        '</div><div class="result-card"><h3>Lecture NyXia</h3><p>' + escapeHtml(progress >= 100 ? 'Ton objectif est atteint ou dépassé.' : 'Il te reste environ ' + Math.max(0, goal - words) + ' mots pour atteindre ton objectif.') + '</p><div class="meta">' + tag(chars + ' caractères') + tag(perPage + ' mots/page') + '</div></div>'
+    }
+    function metric(value, label) { return '<div class="metric"><strong>' + escapeHtml(value) + '</strong><span>' + escapeHtml(label) + '</span></div>' }
+    function runTimeline() {
+      var lines = byId('timeline-events').value.split(/\n+/).map(function(l) { return l.trim() }).filter(Boolean)
+      var parsed = lines.map(function(line) {
+        var parts = line.split('|').map(function(p) { return p.trim() })
+        var date = parts[0] || 'Date à préciser'
+        var sortable = Date.parse(date.length === 4 ? date + '-01-01' : date)
+        return { date: date, title: parts[1] || line, note: parts.slice(2).join(' | '), sortable: isNaN(sortable) ? 9999999999999 : sortable, incomplete: parts.length < 2 }
+      }).sort(function(a, b) { return a.sortable - b.sortable })
+      byId('result-timeline').innerHTML = parsed.length ? '<div class="timeline-list">' + parsed.map(function(item) {
+        return '<div class="result-card timeline-item"><div class="timeline-date">' + escapeHtml(item.date) + '</div><div><h3>' + escapeHtml(item.title) + '</h3><p>' + escapeHtml(item.note || (item.incomplete ? 'Ligne à compléter.' : '')) + '</p>' + (item.incomplete ? '<span class="tag">À vérifier</span>' : '') + '</div></div>'
+      }).join('') + '</div>' : '<div class="empty">Ajoute au moins un événement pour créer la chronologie.</div>'
+    }
+    function runInspiration() {
+      var genre = byId('inspiration-genre').value.trim() || 'roman'
+      var tone = byId('inspiration-tone').value.trim() || 'mystérieux'
+      var places = ['une gare fermée depuis vingt ans', 'un jardin sur le toit d’un ancien hôtel', 'une librairie ouverte seulement les jours de pluie', 'un phare transformé en résidence d’artistes', 'une salle d’archives sous une mairie']
+      var objects = ['une clé sans serrure connue', 'un carnet rempli de phrases barrées', 'une photo où une personne manque', 'une boîte musicale qui joue faux', 'un bracelet transmis sans explication']
+      var conflicts = ['quelqu’un veut protéger une vérité que le héros doit pourtant révéler', 'deux alliés poursuivent le même but pour des raisons opposées', 'une promesse ancienne bloque la décision la plus simple', 'un témoin fiable se contredit au pire moment', 'un succès apparent déclenche une nouvelle perte']
+      var twists = ['l’indice venait d’un mensonge dit pour faire le bien', 'la personne qui semblait fuir cherchait en réalité à revenir', 'l’objet important n’a de valeur que pour une seule mémoire', 'le lieu interdit protégeait quelqu’un, pas un secret', 'la solution oblige le personnage à changer de camp intérieurement']
+      function pick(arr) { return arr[Math.floor(Math.random() * arr.length)] }
+      byId('result-inspiration').innerHTML = '<div class="result-card"><h3>Déclencheur NyXia</h3><p>Pour un projet ' + escapeHtml(genre) + ' à l’ambiance ' + escapeHtml(tone) + '.</p><div class="meta">' + tag('Lieu') + tag('Objet') + tag('Conflit') + tag('Retournement') + '</div></div>' +
+        sections([['Lieu', [pick(places)]], ['Objet', [pick(objects)]], ['Conflit', [pick(conflicts)]], ['Retournement', [pick(twists)]]])
+    }
+
+    renderCards()
+    openTool('titles')
+    initializeAuth()
+  </script>
+</body>
+</html>
