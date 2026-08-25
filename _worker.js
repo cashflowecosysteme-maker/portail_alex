@@ -1065,6 +1065,9 @@ Tu distingues la tension, le suspense, le choc et la révélation. Tu privilégi
 
 TON STYLE
 Tu es calme, précise, sobre et mystérieuse. Tu ne dramatises pas chaque phrase et tu ne transformes jamais la conversation en expérience effrayante dirigée contre {first_name}. Tu restes une assistante d'écriture.
+Tu tutoies toujours {first_name}. Tu emploies « tu », « ton », « ta » et « tes », jamais « vous », « votre » ou « vos » pour t'adresser à la personne.
+Tu formules tes questions dans un français clair et naturel. Tu évites les métaphores floues ou les expressions maladroites comme « ancres banales à déformer ».
+Lorsque tu évoques la faille intérieure, tu précises clairement qu'il s'agit de celle du personnage.
 
 TES LIMITES
 - Tu évites toute description graphique ou complaisante de violence.
@@ -1763,6 +1766,353 @@ async function handleSystemeWebhook(request, env) {
 }
 
 
+// ───────────── STUDIO DE COUVERTURE KDP ─────────────
+// Les clés demeurent exclusivement dans les secrets Cloudflare :
+// IDEOGRAM_API_KEY, RECRAFT_API_KEY et BFL_API_KEY.
+// Le navigateur reçoit seulement une image temporaire protégée par la session du portail.
+
+const COVER_JOB_TTL = 60 * 30;
+const COVER_ASSET_TTL = 60 * 60 * 24;
+const COVER_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
+function coverTokenFromRequest(request, explicitToken = '') {
+  if (explicitToken) return String(explicitToken);
+  const authorization = request.headers.get('Authorization') || '';
+  const bearer = authorization.match(/^Bearer\s+(.+)$/i);
+  return bearer ? bearer[1].trim() : '';
+}
+
+async function getCoverSession(request, env, explicitToken = '') {
+  if (!env.CASHFLOW_KV) return null;
+  const token = coverTokenFromRequest(request, explicitToken);
+  if (!token) return null;
+  const raw = await env.CASHFLOW_KV.get(`session:${token}`);
+  if (!raw) return null;
+  try {
+    const session = JSON.parse(raw);
+    return { token, session };
+  } catch (_) {
+    return null;
+  }
+}
+
+function coverProviderCandidates(mode, env) {
+  const ideogram = env.IDEOGRAM_API_KEY ? {
+    id: 'ideogram',
+    label: mode === 'fast' ? 'Ideogram 4 Turbo' : 'Ideogram 4',
+    speed: mode === 'fast' ? 'TURBO' : (mode === 'balanced' ? 'DEFAULT' : 'QUALITY')
+  } : null;
+  const recraft = env.RECRAFT_API_KEY ? {
+    id: 'recraft',
+    label: 'Recraft V4.1',
+    model: 'recraftv4_1'
+  } : null;
+  const flux = env.BFL_API_KEY ? {
+    id: 'bfl',
+    label: 'FLUX.2 Pro',
+    endpoint: 'flux-2-pro'
+  } : null;
+
+  const orders = {
+    fast: [ideogram, recraft, flux],
+    balanced: [ideogram, recraft, flux],
+    design: [recraft, ideogram, flux],
+    photo: [flux, recraft, ideogram]
+  };
+  return (orders[mode] || orders.balanced).filter(Boolean);
+}
+
+function chooseCoverProvider(mode, env) {
+  return coverProviderCandidates(mode, env)[0] || null;
+}
+
+function cleanCoverPrompt(body) {
+  const prompt = String(body.prompt || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ' ').trim();
+  if (!prompt) return '';
+  const title = String(body.title || '').trim().slice(0, 160);
+  const genre = String(body.genre || '').trim().slice(0, 120);
+  return [
+    prompt.slice(0, 7600),
+    genre ? `Genre éditorial : ${genre}.` : '',
+    title ? `L'ambiance peut évoquer le livre intitulé « ${title} », sans écrire ce titre dans l'image.` : '',
+    'Créer uniquement une illustration verticale de couverture, sans texte, sans lettre, sans logo, sans filigrane, sans code-barres et sans maquette de livre. Conserver un espace visuel calme dans la partie supérieure pour la composition typographique effectuée ensuite par le Studio NyXia.'
+  ].filter(Boolean).join('\n');
+}
+
+async function coverProviderError(response, providerLabel) {
+  let detail = '';
+  try {
+    const data = await response.clone().json();
+    detail = data.message || data.error || data.detail || data.failure_reason || '';
+    if (detail && typeof detail === 'object') detail = JSON.stringify(detail);
+  } catch (_) {
+    try { detail = await response.text(); } catch (_) {}
+  }
+  detail = String(detail || '').replace(/\s+/g, ' ').trim().slice(0, 320);
+  return `${providerLabel} a refusé la demande (${response.status})${detail ? ` : ${detail}` : '.'}`;
+}
+
+async function cacheCoverRemoteImage(env, remoteUrl, owner, providerLabel) {
+  if (!env.CASHFLOW_KV) throw new Error('Le stockage KV du Studio de couverture n’est pas configuré.');
+  let parsed;
+  try { parsed = new URL(remoteUrl); } catch (_) { throw new Error('Le moteur d’image a retourné une adresse invalide.'); }
+  if (parsed.protocol !== 'https:') throw new Error('Le moteur d’image a retourné une adresse non sécurisée.');
+
+  const response = await fetch(parsed.toString(), { redirect: 'follow' });
+  if (!response.ok) throw new Error(`L’illustration a été créée, mais son téléchargement a échoué (${response.status}).`);
+  const announcedSize = Number(response.headers.get('Content-Length') || 0);
+  if (announcedSize > COVER_MAX_IMAGE_BYTES) throw new Error('L’image créée dépasse la taille temporaire permise.');
+  const bytes = await response.arrayBuffer();
+  if (!bytes.byteLength || bytes.byteLength > COVER_MAX_IMAGE_BYTES) throw new Error('L’image créée est vide ou trop volumineuse.');
+  let contentType = (response.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase();
+  if (!contentType.startsWith('image/')) contentType = 'image/jpeg';
+
+  const assetId = crypto.randomUUID();
+  await env.CASHFLOW_KV.put(`cover_asset:${assetId}:bytes`, bytes, { expirationTtl: COVER_ASSET_TTL });
+  await env.CASHFLOW_KV.put(`cover_asset:${assetId}:meta`, JSON.stringify({
+    owner: String(owner || '').toLowerCase(),
+    contentType,
+    providerLabel,
+    createdAt: new Date().toISOString()
+  }), { expirationTtl: COVER_ASSET_TTL });
+  return assetId;
+}
+
+async function putCoverJob(env, jobId, job) {
+  await env.CASHFLOW_KV.put(`cover_job:${jobId}`, JSON.stringify(job), { expirationTtl: COVER_JOB_TTL });
+}
+
+async function handleCoverProviders(request, env) {
+  const auth = await getCoverSession(request, env);
+  if (!auth) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
+  const modes = {};
+  for (const mode of ['fast', 'balanced', 'design', 'photo']) {
+    modes[mode] = coverProviderCandidates(mode, env).length > 0;
+  }
+  return json({
+    success: true,
+    modes,
+    configured: {
+      ideogram: Boolean(env.IDEOGRAM_API_KEY),
+      recraft: Boolean(env.RECRAFT_API_KEY),
+      flux: Boolean(env.BFL_API_KEY)
+    }
+  });
+}
+
+async function startIdeogramCover(prompt, provider, env) {
+  const form = new FormData();
+  form.append('text_prompt', prompt);
+  // Format portrait 2:3 officiel du palier 1K d’Ideogram 4.
+  form.append('resolution', '832x1248');
+  form.append('rendering_speed', provider.speed || 'DEFAULT');
+  const response = await fetch('https://api.ideogram.ai/v1/ideogram-v4/async/generate', {
+    method: 'POST',
+    headers: { 'Api-Key': env.IDEOGRAM_API_KEY },
+    body: form
+  });
+  if (!response.ok) throw new Error(await coverProviderError(response, provider.label));
+  const data = await response.json();
+  if (!data.generation_id) throw new Error('Ideogram n’a pas retourné le numéro de génération attendu.');
+  return { remoteId: data.generation_id };
+}
+
+async function startRecraftCover(prompt, provider, env) {
+  const response = await fetch('https://external.api.recraft.ai/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.RECRAFT_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prompt,
+      n: 1,
+      model: provider.model || 'recraftv4_1',
+      size: '832x1280',
+      response_format: 'url'
+    })
+  });
+  if (!response.ok) throw new Error(await coverProviderError(response, provider.label));
+  const data = await response.json();
+  const remoteUrl = data?.data?.[0]?.url || data?.image?.url || '';
+  if (!remoteUrl) throw new Error('Recraft n’a pas retourné l’image attendue.');
+  return { remoteUrl };
+}
+
+async function startBflCover(prompt, provider, env) {
+  const response = await fetch(`https://api.bfl.ai/v1/${provider.endpoint || 'flux-2-pro'}`, {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'x-key': env.BFL_API_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ prompt, width: 1024, height: 1536, output_format: 'jpeg' })
+  });
+  if (!response.ok) throw new Error(await coverProviderError(response, provider.label));
+  const data = await response.json();
+  if (!data.id || !data.polling_url) throw new Error('FLUX n’a pas retourné le suivi de génération attendu.');
+  const polling = new URL(data.polling_url);
+  if (polling.protocol !== 'https:' || !/(^|\.)bfl\.ai$/i.test(polling.hostname)) {
+    throw new Error('FLUX a retourné une adresse de suivi non reconnue.');
+  }
+  return { remoteId: data.id, pollingUrl: polling.toString() };
+}
+
+async function handleCoverGenerate(request, env) {
+  if (!env.CASHFLOW_KV) return json({ error: 'Le binding CASHFLOW_KV est requis pour le Studio de couverture.' }, 500);
+  const body = await request.json().catch(() => ({}));
+  const auth = await getCoverSession(request, env, body.token || '');
+  if (!auth) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
+  const owner = String(auth.session.email || auth.session.userId || '').toLowerCase();
+  if (!owner) return json({ error: 'Cette session ne contient pas d’identité utilisable.' }, 401);
+
+  const prompt = cleanCoverPrompt(body);
+  if (prompt.length < 20) return json({ error: 'Décris un peu plus l’illustration que tu souhaites créer.' }, 400);
+  const mode = ['fast', 'balanced', 'design', 'photo'].includes(body.mode) ? body.mode : 'balanced';
+  const provider = chooseCoverProvider(mode, env);
+  if (!provider) {
+    return json({
+      error: 'Aucun moteur d’image n’est encore configuré. Ajoute IDEOGRAM_API_KEY, RECRAFT_API_KEY ou BFL_API_KEY dans les secrets Cloudflare.'
+    }, 503);
+  }
+
+  try {
+    if (provider.id === 'recraft') {
+      const started = await startRecraftCover(prompt, provider, env);
+      const assetId = await cacheCoverRemoteImage(env, started.remoteUrl, owner, provider.label);
+      return json({ status: 'ready', providerLabel: provider.label, imageUrl: `/api/cover/image?id=${encodeURIComponent(assetId)}` });
+    }
+
+    const started = provider.id === 'ideogram'
+      ? await startIdeogramCover(prompt, provider, env)
+      : await startBflCover(prompt, provider, env);
+    const jobId = crypto.randomUUID();
+    await putCoverJob(env, jobId, {
+      owner,
+      provider: provider.id,
+      providerLabel: provider.label,
+      remoteId: started.remoteId,
+      pollingUrl: started.pollingUrl || '',
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
+    return json({ status: 'pending', jobId, providerLabel: provider.label });
+  } catch (error) {
+    console.error('cover generation', provider.id, error);
+    return json({ error: error.message || 'Le moteur d’image a rencontré une interruption.' }, 502);
+  }
+}
+
+async function finalizeCoverJob(env, jobId, job, remoteUrl, extra = {}) {
+  const assetId = await cacheCoverRemoteImage(env, remoteUrl, job.owner, job.providerLabel);
+  const completed = {
+    ...job,
+    ...extra,
+    status: 'ready',
+    assetId,
+    completedAt: new Date().toISOString()
+  };
+  await putCoverJob(env, jobId, completed);
+  return json({
+    status: 'ready',
+    providerLabel: job.providerLabel,
+    imageUrl: `/api/cover/image?id=${encodeURIComponent(assetId)}`,
+    usageCostUsdMicros: completed.usageCostUsdMicros || null
+  });
+}
+
+async function handleCoverStatus(request, env, url) {
+  const auth = await getCoverSession(request, env);
+  if (!auth) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
+  if (!env.CASHFLOW_KV) return json({ error: 'Le stockage KV du Studio est absent.' }, 500);
+  const owner = String(auth.session.email || auth.session.userId || '').toLowerCase();
+  const jobId = String(url.searchParams.get('id') || '');
+  if (!/^[0-9a-f-]{20,}$/i.test(jobId)) return json({ error: 'Numéro de génération invalide.' }, 400);
+  const raw = await env.CASHFLOW_KV.get(`cover_job:${jobId}`);
+  if (!raw) return json({ error: 'Cette génération a expiré. Relance une nouvelle image.' }, 404);
+  let job;
+  try { job = JSON.parse(raw); } catch (_) { return json({ error: 'Suivi de génération invalide.' }, 500); }
+  if (job.owner !== owner) return json({ error: 'Cette génération appartient à une autre session.' }, 403);
+  if (job.status === 'ready' && job.assetId) {
+    return json({ status: 'ready', providerLabel: job.providerLabel, imageUrl: `/api/cover/image?id=${encodeURIComponent(job.assetId)}` });
+  }
+  if (job.status === 'failed') return json({ status: 'failed', error: job.error || 'La génération a échoué.' });
+
+  try {
+    if (job.provider === 'ideogram') {
+      const response = await fetch(`https://api.ideogram.ai/v1/generations/${encodeURIComponent(job.remoteId)}`, {
+        headers: { 'Api-Key': env.IDEOGRAM_API_KEY }
+      });
+      if (!response.ok) throw new Error(await coverProviderError(response, job.providerLabel));
+      const data = await response.json();
+      if (data.status === 'completed') {
+        const remoteUrl = data?.data?.[0]?.url || '';
+        if (!remoteUrl) throw new Error('Ideogram a terminé sans retourner d’image.');
+        return await finalizeCoverJob(env, jobId, job, remoteUrl, { usageCostUsdMicros: data.usage_cost_usd_micros || null });
+      }
+      if (data.status === 'failed') {
+        job.status = 'failed';
+        job.error = data.failure_reason || 'Ideogram n’a pas pu créer cette image.';
+        await putCoverJob(env, jobId, job);
+        return json({ status: 'failed', error: job.error });
+      }
+      return json({ status: 'pending', providerLabel: job.providerLabel });
+    }
+
+    if (job.provider === 'bfl') {
+      const polling = new URL(job.pollingUrl);
+      if (polling.protocol !== 'https:' || !/(^|\.)bfl\.ai$/i.test(polling.hostname)) throw new Error('Adresse de suivi FLUX invalide.');
+      const response = await fetch(polling.toString(), {
+        headers: { 'accept': 'application/json', 'x-key': env.BFL_API_KEY }
+      });
+      if (!response.ok) throw new Error(await coverProviderError(response, job.providerLabel));
+      const data = await response.json();
+      if (data.status === 'Ready') {
+        const remoteUrl = data?.result?.sample || '';
+        if (!remoteUrl) throw new Error('FLUX a terminé sans retourner d’image.');
+        return await finalizeCoverJob(env, jobId, job, remoteUrl);
+      }
+      if (data.status === 'Error' || data.status === 'Failed') {
+        job.status = 'failed';
+        job.error = data.error || 'FLUX n’a pas pu créer cette image.';
+        await putCoverJob(env, jobId, job);
+        return json({ status: 'failed', error: job.error });
+      }
+      return json({ status: 'pending', providerLabel: job.providerLabel });
+    }
+    return json({ status: 'failed', error: 'Moteur de génération inconnu.' });
+  } catch (error) {
+    console.error('cover status', job.provider, error);
+    return json({ error: error.message || 'Le suivi de génération a rencontré une interruption.' }, 502);
+  }
+}
+
+async function handleCoverImage(request, env, url) {
+  const auth = await getCoverSession(request, env);
+  if (!auth) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
+  if (!env.CASHFLOW_KV) return json({ error: 'Le stockage KV du Studio est absent.' }, 500);
+  const owner = String(auth.session.email || auth.session.userId || '').toLowerCase();
+  const assetId = String(url.searchParams.get('id') || '');
+  if (!/^[0-9a-f-]{20,}$/i.test(assetId)) return json({ error: 'Illustration invalide.' }, 400);
+  const metaRaw = await env.CASHFLOW_KV.get(`cover_asset:${assetId}:meta`);
+  if (!metaRaw) return json({ error: 'Cette illustration temporaire a expiré.' }, 404);
+  let meta;
+  try { meta = JSON.parse(metaRaw); } catch (_) { return json({ error: 'Métadonnées d’image invalides.' }, 500); }
+  if (meta.owner !== owner) return json({ error: 'Cette illustration appartient à une autre session.' }, 403);
+  const bytes = await env.CASHFLOW_KV.get(`cover_asset:${assetId}:bytes`, 'arrayBuffer');
+  if (!bytes) return json({ error: 'Cette illustration temporaire a expiré.' }, 404);
+  return new Response(bytes, {
+    headers: {
+      'Content-Type': meta.contentType || 'image/jpeg',
+      'Cache-Control': 'private, max-age=300',
+      'Content-Disposition': 'inline; filename="illustration-couverture"',
+      'X-Content-Type-Options': 'nosniff'
+    }
+  });
+}
+
+
 export default {
   async fetch(request, env) {
     
@@ -1796,6 +2146,12 @@ const url = new URL(request.url);
       if (path === '/api/products' && request.method === 'GET') return await handleListProducts(request, env);
       if (path === '/api/products' && request.method === 'POST') return await handleCreateProduct(request, env);
       if (path === '/api/chat' && request.method === 'POST') return await handleChat(request, env);
+
+      // ── Studio de couverture KDP (Portail Alex) ──
+      if (path === '/api/cover/providers' && request.method === 'GET') return await handleCoverProviders(request, env);
+      if (path === '/api/cover/generate' && request.method === 'POST') return await handleCoverGenerate(request, env);
+      if (path === '/api/cover/status' && request.method === 'GET') return await handleCoverStatus(request, env, url);
+      if (path === '/api/cover/image' && request.method === 'GET') return await handleCoverImage(request, env, url);
 
       // ── Ingestion des livres Markdown dans Vectorize (Sécurisé Admin) ──
       if (path === '/api/ingest-book' && request.method === 'POST') return await handleIngestBook(request, env);
