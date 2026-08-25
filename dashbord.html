@@ -327,11 +327,6 @@
             <span class="nav-dropdown-chevron" aria-hidden="true">⌄</span>
           </button>
           <div class="nav-dropdown-menu" id="writing-workshop-menu">
-            <div class="nav-item" id="nav-coverstudio" onclick="openAgentTab('coverstudio')">
-              <span class="nav-icon" aria-hidden="true">🎨</span>
-              <span class="nav-text"><span class="nav-name">Studio de couverture KDP</span><span class="nav-sub">Calculateur & export</span></span>
-              <span class="nav-arrow">›</span>
-            </div>
             <div class="nav-item" id="nav-aimee" onclick="openAgentTab('aimee')">
               <img class="nav-avatar" src="/Aimee.png" alt="Aimée">
               <span class="nav-text"><span class="nav-name">Aimée</span><span class="nav-sub">Romans d’amour</span></span>
@@ -720,7 +715,7 @@
     })
 
     /* ═══════ NAVIGATION ═══════ */
-    var WRITING_WORKSHOP_AGENTS = ['coverstudio', 'aimee', 'alibi', 'constance', 'fripouille', 'melusine', 'abime']
+    var WRITING_WORKSHOP_AGENTS = ['aimee', 'alibi', 'constance', 'fripouille', 'melusine', 'abime']
 
     function isWritingWorkshopAgent(key) {
       return WRITING_WORKSHOP_AGENTS.indexOf(key) !== -1
@@ -973,8 +968,7 @@
       constance: '/chat-constance.html',
       fripouille: '/chat-fripouille.html',
       melusine: '/chat-melusine.html',
-      abime: '/chat-abime.html',
-      coverstudio: '/studio-couverture.html'
+      abime: '/chat-abime.html'
     }
 
     function openAgentTab(key) {
