@@ -92,7 +92,8 @@
     .notice.warn { border-color: rgba(255,123,147,.24); background: rgba(255,123,147,.07); color: #ffc4cf; }
 
     .quality-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-    .quality-box { min-height: 93px; padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: rgba(10,8,21,.58); transition: .2s; }
+    .quality-card { display: block; min-width: 0; }
+    .quality-box { min-height: 93px; padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: rgba(10,8,21,.58); transition: .2s; display: block; width: 100%; height: 100%; box-sizing: border-box; }
     .quality-box strong { display: block; font-size: 12px; margin-bottom: 4px; }
     .quality-box span { color: var(--muted); font-size: 10px; line-height: 1.4; display: block; }
     .quality-box em { display: inline-flex; margin-top: 7px; padding: 3px 6px; border-radius: 999px; background: rgba(154,107,255,.12); color: #cdb9ff; font-size: 8px; font-style: normal; text-transform: uppercase; letter-spacing: .04em; }
