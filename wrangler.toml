@@ -1,11 +1,18 @@
-name = "alex-devenir-ecrivain"
+name = "portail-alex"
 main = "_worker.js"
-compatibility_date = "2026-07-01"
+compatibility_date = "2026-08-25"
+workers_dev = false
+preview_urls = false
 keep_vars = true
 
 [assets]
 directory = "."
 binding = "ASSETS"
+
+[[routes]]
+pattern = "portailalex.nyxia.top"
+zone_name = "nyxia.top"
+custom_domain = true
 
 [[kv_namespaces]]
 binding = "CASHFLOW_KV"
@@ -19,4 +26,4 @@ binding = "VECTORIZE_INDEX"
 index_name = "univers-livres"
 
 [vars]
-SITE_URL = "https://alex.nyxia.top"
+SITE_URL = "https://portailalex.nyxia.top"
