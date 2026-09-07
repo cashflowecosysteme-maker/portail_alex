@@ -390,6 +390,18 @@
 
 
   function useSuggestion(btn) {
+    var _au = btn.getAttribute('data-audio')
+    var _vi = btn.getAttribute('data-video')
+    var _im = btn.getAttribute('data-image')
+    var _intro = btn.getAttribute('data-intro') || ''
+    if (_au || _vi || _im) {
+      var _body = _intro
+      if (_vi) _body += (_body ? '\n\n' : '') + '[VIDEO: ' + _vi.trim() + ']'
+      if (_au) _body += (_body ? '\n\n' : '') + '[AUDIO: ' + _au.trim() + ']'
+      if (_im) _body += (_body ? '\n\n' : '') + '[PHOTO: ' + _im.trim() + ']'
+      addBotMessage(_body)
+      return
+    }
     var text = (btn.textContent || '').trim()
     if (!text) return
     var input = document.getElementById('chat-input')
@@ -493,6 +505,11 @@
         var streamId = parsed.pathname.split('/').filter(Boolean)[0] || ''
         if (/^[A-Za-z0-9_-]+$/.test(streamId)) return 'https://iframe.videodelivery.net/' + streamId
       }
+      if (host === 'drive.google.com') {
+        var driveMatch = parsed.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/)
+        var driveId2 = driveMatch ? driveMatch[1] : (parsed.searchParams.get('id') || '')
+        if (driveId2) return 'https://drive.google.com/file/d/' + driveId2 + '/preview'
+      }
     } catch (e) {}
     return ''
   }
@@ -534,6 +551,28 @@
     wrapper.appendChild(card)
   }
 
+  function foDriveId(u){ try{ var p=new URL(u); if(p.hostname.replace(/^www\./,'')!=='drive.google.com') return ''; var m=p.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/); return m?m[1]:(p.searchParams.get('id')||''); }catch(e){ return ''; } }
+
+  function appendAudio(wrapper, url) {
+    var gid = foDriveId(url)
+    var card = document.createElement('div'); card.style.cssText = 'width:min(100%,520px);margin-top:6px'
+    if (gid) {
+      var ifr = document.createElement('iframe'); ifr.src = 'https://drive.google.com/file/d/' + gid + '/preview'; ifr.allow = 'autoplay'
+      ifr.style.cssText = 'width:100%;height:120px;border:0;border-radius:12px;background:#0f1c3f'; card.appendChild(ifr)
+    } else {
+      var au = document.createElement('audio'); au.src = url; au.controls = true; au.preload = 'metadata'
+      au.style.cssText = 'width:100%;display:block'; card.appendChild(au)
+    }
+    wrapper.appendChild(card)
+  }
+
+  function appendPhoto(wrapper, url) {
+    var img = document.createElement('img'); img.src = url; img.alt = 'Image'
+    img.style.cssText = 'width:min(100%,520px);border-radius:12px;display:block;margin-top:6px'
+    img.onerror = function(){ img.style.display = 'none' }
+    wrapper.appendChild(img)
+  }
+
   function addBotMessage(text) {
     var msgAgent = _currentAgent
     var msgs = document.getElementById('chat-messages-' + msgAgent)
@@ -549,7 +588,11 @@
     var parchImgMatch = text.match(parchImgRegex)
     var videoRegex = /\[VIDEO\s*:\s*([^\]\r\n]+)\]/i
     var videoMatch = text.match(videoRegex)
-    var textWithoutImg = text.replace(imgRegex, '').replace(parchRegex, '').replace(parchImgRegex, '').replace(videoRegex, '').trim()
+    var audioRegex = /\[AUDIO\s*:\s*([^\]\r\n]+)\]/i
+    var audioMatch = text.match(audioRegex)
+    var photoRegex = /\[PHOTO\s*:\s*([^\]\r\n]+)\]/i
+    var photoMatch = text.match(photoRegex)
+    var textWithoutImg = text.replace(imgRegex, '').replace(parchRegex, '').replace(parchImgRegex, '').replace(videoRegex, '').replace(audioRegex, '').replace(photoRegex, '').trim()
     var imgDesc = imgMatch ? imgMatch[1].trim() : null
     var parchContent = parchMatch ? parchMatch[1].trim() : null
     var parchImgUrl = parchImgMatch ? parchImgMatch[1].trim() : null
@@ -558,7 +601,7 @@
     var bubble = document.createElement('div'); bubble.className = 'msg-bubble'
     if (textWithoutImg) {
       bubble.innerHTML = cleanMarkdown(escHtml(textWithoutImg)).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')
-    } else if (!imgDesc && !parchContent && !videoMatch) {
+    } else if (!imgDesc && !parchContent && !videoMatch && !audioMatch && !photoMatch) {
       bubble.innerHTML = cleanMarkdown(escHtml(text)).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')
     } else {
       bubble.style.display = 'none'
@@ -566,6 +609,8 @@
     wrapper.appendChild(bubble)
 
     if (videoUrl) appendLivingVideo(wrapper, videoUrl)
+    if (audioMatch) { var _auU = safeLivingVideoUrl(audioMatch[1]); if (_auU) appendAudio(wrapper, _auU) }
+    if (photoMatch) { var _phU = safeLivingVideoUrl(photoMatch[1]); if (_phU) appendPhoto(wrapper, _phU) }
 
     if (parchContent) {
       var parchWrap = document.createElement('div')
