@@ -397,6 +397,18 @@
 
 
   function useSuggestion(btn) {
+    var _au = btn.getAttribute('data-audio')
+    var _vi = btn.getAttribute('data-video')
+    var _im = btn.getAttribute('data-image')
+    var _intro = btn.getAttribute('data-intro') || ''
+    if (_au || _vi || _im) {
+      var _body = _intro
+      if (_vi) _body += (_body ? '\n\n' : '') + '[VIDEO: ' + _vi.trim() + ']'
+      if (_au) _body += (_body ? '\n\n' : '') + '[AUDIO: ' + _au.trim() + ']'
+      if (_im) _body += (_body ? '\n\n' : '') + '[PHOTO: ' + _im.trim() + ']'
+      addBotMessage(_body)
+      return
+    }
     var text = (btn.textContent || '').trim()
     if (!text) return
     var input = document.getElementById('chat-input')
@@ -528,6 +540,11 @@
         var streamId = parsed.pathname.split('/').filter(Boolean)[0] || ''
         if (/^[A-Za-z0-9_-]+$/.test(streamId)) return 'https://iframe.videodelivery.net/' + streamId
       }
+      if (host === 'drive.google.com') {
+        var driveMatch = parsed.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/)
+        var driveId2 = driveMatch ? driveMatch[1] : (parsed.searchParams.get('id') || '')
+        if (driveId2) return 'https://drive.google.com/file/d/' + driveId2 + '/preview'
+      }
     } catch (e) {}
     return ''
   }
@@ -569,8 +586,17 @@
     wrapper.appendChild(card)
   }
 
+  function foDriveId(u){ try{ var p=new URL(u); if(p.hostname.replace(/^www\./,'')!=='drive.google.com') return ''; var m=p.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/); return m?m[1]:(p.searchParams.get('id')||''); }catch(e){ return ''; } }
+
   function appendLivingAudio(wrapper, audioUrl, meta) {
     meta = meta || {}
+    var _gid = foDriveId(audioUrl)
+    if (_gid) {
+      var dcard = document.createElement('div'); dcard.style.cssText = 'width:min(100%,460px);margin-top:6px'
+      var difr = document.createElement('iframe'); difr.src = 'https://drive.google.com/file/d/' + _gid + '/preview'; difr.allow = 'autoplay'
+      difr.style.cssText = 'width:100%;height:120px;border:0;border-radius:12px;background:#0f1c3f'
+      dcard.appendChild(difr); wrapper.appendChild(dcard); return
+    }
     var card = document.createElement('div')
     card.style.cssText = 'width:min(100%,460px);margin-top:6px;padding:12px 14px;border-radius:16px;border:1px solid rgba(123,92,255,0.22);background:linear-gradient(145deg,rgba(123,92,255,0.09),rgba(255,255,255,0.025));box-shadow:0 12px 30px rgba(20,12,48,0.16)'
 
