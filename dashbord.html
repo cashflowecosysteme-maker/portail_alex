@@ -249,15 +249,17 @@
 
     @media (max-width: 900px) {
       #mobile-menu-btn { display: flex !important; }
+      header { z-index: 1002; }
+      #mobile-menu-backdrop { z-index: 1000; }
       .header-brand { width: auto; border: none; min-width: 0; }
       .header-center { display: none; }
-      .app-body { position: relative; }
+      .app-body { position: relative; z-index: auto; }
       aside {
         position: fixed;
         top: 0; left: 0;
         height: 100vh;
         width: min(300px, 86vw);
-        z-index: 100;
+        z-index: 1001;
         transform: translateX(-105%);
         transition: transform .28s ease;
         box-shadow: none;
@@ -298,9 +300,9 @@
       <button class="btn-header btn-logout" onclick="logout()">Déconnexion</button>
     </div>
   </header>
-  <div id="mobile-menu-backdrop" onclick="closeMobileMenu()" aria-hidden="true"></div>
 
   <div class="app-body">
+    <div id="mobile-menu-backdrop" onclick="closeMobileMenu()" aria-hidden="true"></div>
     <aside>
       <!-- PERSONNAGES DU PORTAIL ALEX -->
       <div class="sidebar-section">
