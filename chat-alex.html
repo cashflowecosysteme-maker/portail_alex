@@ -73,6 +73,25 @@
     .sug-chip { border: 1px solid rgba(123,92,255,0.25); background: rgba(123,92,255,0.08); color: var(--t2); border-radius: 50px; padding: 8px 14px; font-family: 'Outfit', sans-serif; font-size: 12px; cursor: pointer; transition: all .15s; text-align: center; line-height: 1.35; }
     .sug-chip:hover { border-color: rgba(123,92,255,0.55); background: rgba(123,92,255,0.16); color: #fff; }
 
+
+    /* Module 4 — raccourcis d'accompagnement du premier jet */
+    #writing-tools-wrap { display:none; padding:0 24px 14px; flex-shrink:0; }
+    .writing-tools {
+      width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;
+      padding:10px; border-radius:16px; border:1px solid rgba(196,181,253,0.20);
+      background:linear-gradient(135deg,rgba(255,255,255,0.045),rgba(123,92,255,0.055));
+      backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+      box-shadow:0 8px 26px rgba(6,10,24,0.20),0 0 20px rgba(123,92,255,0.08);
+    }
+    .writing-tools-label { grid-column:1/-1; font-size:11px; color:var(--t3); text-align:center; letter-spacing:.3px; }
+    .writing-tool-btn {
+      min-height:38px; border:1px solid rgba(123,92,255,0.24); border-radius:12px;
+      background:rgba(123,92,255,0.07); color:var(--t2); font-family:'Outfit',sans-serif;
+      font-size:12px; font-weight:600; cursor:pointer; padding:9px 10px; text-align:center; transition:all .18s ease;
+    }
+    .writing-tool-btn:hover { border-color:rgba(196,181,253,.58); background:rgba(123,92,255,.14); color:#fff; transform:translateY(-1px); }
+    @media (max-width:560px) { .writing-tools { grid-template-columns:1fr; } .writing-tools-label { grid-column:1; } }
+
     .sugg-btn { padding: 8px 16px; border-radius: 50px; border: 1px solid rgba(123,92,255,0.25); background: rgba(123,92,255,0.07); color: var(--t3); font-family: 'Outfit', sans-serif; font-size: 13px; cursor: pointer; transition: all .2s; }
     .sugg-btn:hover { border-color: var(--p); color: var(--t2); background: rgba(123,92,255,0.14); transform: translateY(-1px); }
     .nx-dots { display: inline-flex; gap: 4px; align-items: center; }
@@ -166,6 +185,16 @@
         ✨ Commencer ma formation
       </button>
     </div>
+    <div id="writing-tools-wrap">
+      <div class="writing-tools">
+        <div class="writing-tools-label">✍️ Module 4 · Atelier de rédaction</div>
+        <button type="button" class="writing-tool-btn" onclick="module4Quick('continue')">✍️ Continuer mon roman</button>
+        <button type="button" class="writing-tool-btn" onclick="module4Quick('blocked')">🆘 Je suis bloqué</button>
+        <button type="button" class="writing-tool-btn" onclick="module4Quick('idea')">💡 Garder une idée</button>
+        <button type="button" class="writing-tool-btn" onclick="module4Quick('progress')">📊 Ma progression</button>
+      </div>
+    </div>
+
     <div class="suggestions" id="suggestions">
       <button type="button" class="sug-chip" onclick="useSuggestion(this)">Structurer mon livre</button>
       <button type="button" class="sug-chip" onclick="useSuggestion(this)">Créer mon personnage</button>
@@ -546,13 +575,39 @@
       var wrap = document.getElementById('formation-launch-wrap')
       var btn = document.getElementById('formation-launch')
       if (!wrap || !btn) return
-      if (!formations.length) { wrap.style.display = 'none'; return }
+      if (!formations.length) { wrap.style.display = 'none'; foRefreshModule4Tools([]); return }
       _foHasProgress = formations.some(function(f) { return f.progress && (f.progress.moduleId || f.progress.moduleNumero != null) })
       btn.textContent = _foHasProgress ? '▸ Continuer ma formation' : '✨ Commencer ma formation'
       wrap.style.display = 'block'
+      foRefreshModule4Tools(formations)
     })
-    .catch(function(){ /* pas de bouton si l'appel échoue : le chat reste pleinement utilisable */ })
+    .catch(function(){ foRefreshModule4Tools([]); /* le chat reste pleinement utilisable */ })
   }
+  function foRefreshModule4Tools(formations) {
+    var tools = document.getElementById('writing-tools-wrap')
+    if (!tools) return
+    var active = null
+    ;(formations || []).forEach(function(f) {
+      if (!f || !f.progress || f.progress.moduleNumero == null) return
+      if (!active) { active = f; return }
+      var a = Date.parse((active.progress && active.progress.updatedAt) || '') || 0
+      var b = Date.parse(f.progress.updatedAt || '') || 0
+      if (b >= a) active = f
+    })
+    tools.style.display = active && Number(active.progress.moduleNumero) === 4 ? 'block' : 'none'
+  }
+
+  function module4Quick(action) {
+    var messages = {
+      continue: "Je veux continuer mon roman. Aide-moi à repartir exactement où j'en étais dans ma dernière séance, sans me faire recommencer ce qui est déjà décidé.",
+      blocked: "Je suis bloqué dans mon roman. Aide-moi à identifier ce qui bloque et à avancer, une seule question à la fois.",
+      idea: "J'ai une idée à garder pour plus tard dans mon roman. Aide-moi à la noter dans ma mémoire de projet sans interrompre inutilement mon premier jet.",
+      progress: "Montre-moi ma progression de rédaction actuelle à partir de ma mémoire de roman : objectif, total de mots, où j'en suis et quelle est ma prochaine étape."
+    }
+    var text = messages[action]
+    if (text) sendMessageText(text, false)
+  }
+
   function foLaunch() {
     sendMessageText(_foHasProgress ? 'continue ma formation' : 'commence ma formation', false)
     // le libellé passera à « Continuer » au prochain rafraîchissement (après réponse)
