@@ -1465,6 +1465,140 @@ const FORMATION_AGENT = 'alex';
 function formationDocKey(agent, id) { return `formation:${agent}:${id}`; }
 function formationProgressKey(email) { return `formation_progress:${String(email || '').toLowerCase()}`; }
 
+
+// ───────────── ALEX — MÉMOIRE PERSISTANTE DU ROMAN (KV) ─────────────
+// Séparée de la progression pédagogique : la formation sait OÙ la personne est,
+// cette mémoire sait CE qu'elle est réellement en train d'écrire.
+function alexNovelStateKey(email) { return `alex_novel_state:${String(email || '').toLowerCase()}`; }
+
+function cleanNovelText(value, maxLen) {
+  if (value == null) return null;
+  const s = String(value).replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim();
+  return s ? s.slice(0, maxLen || 500) : null;
+}
+
+function cleanNovelInt(value, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function cleanNovelNotes(value, maxItems = 60) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const item of value) {
+    const s = cleanNovelText(item, 600);
+    if (s && !out.includes(s)) out.push(s);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function normalizeAlexNovelState(raw) {
+  const s = raw && typeof raw === 'object' ? raw : {};
+  return {
+    title: cleanNovelText(s.title, 180),
+    genre: cleanNovelText(s.genre, 120),
+    targetWords: cleanNovelInt(s.targetWords, 0, 300000),
+    currentWords: cleanNovelInt(s.currentWords, 0, 300000),
+    writingDaysPerWeek: cleanNovelInt(s.writingDaysPerWeek, 1, 7),
+    dailyTarget: cleanNovelInt(s.dailyTarget, 0, 20000),
+    sessionGoalWords: cleanNovelInt(s.sessionGoalWords, 0, 20000),
+    lastSessionWords: cleanNovelInt(s.lastSessionWords, 0, 50000),
+    chapter: cleanNovelText(s.chapter, 140),
+    currentScene: cleanNovelText(s.currentScene, 700),
+    nextScene: cleanNovelText(s.nextScene, 700),
+    lastSessionNote: cleanNovelText(s.lastSessionNote, 900),
+    correctionNotes: cleanNovelNotes(s.correctionNotes),
+    ideaNotes: cleanNovelNotes(s.ideaNotes),
+    updatedAt: cleanNovelText(s.updatedAt, 80)
+  };
+}
+
+async function getAlexNovelState(env, email) {
+  if (!email) return normalizeAlexNovelState({});
+  try {
+    const raw = await env.CASHFLOW_KV.get(alexNovelStateKey(email));
+    return raw ? normalizeAlexNovelState(JSON.parse(raw)) : normalizeAlexNovelState({});
+  } catch (_) { return normalizeAlexNovelState({}); }
+}
+
+async function patchAlexNovelState(env, email, patch) {
+  if (!email || !patch || typeof patch !== 'object') return null;
+  const prev = await getAlexNovelState(env, email);
+  const next = { ...prev };
+
+  const textFields = {
+    title: 180, genre: 120, chapter: 140,
+    currentScene: 700, nextScene: 700, lastSessionNote: 900
+  };
+  for (const [key, maxLen] of Object.entries(textFields)) {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) next[key] = cleanNovelText(patch[key], maxLen);
+  }
+
+  const intFields = {
+    targetWords: [0, 300000], currentWords: [0, 300000], writingDaysPerWeek: [1, 7],
+    dailyTarget: [0, 20000], sessionGoalWords: [0, 20000], lastSessionWords: [0, 50000]
+  };
+  for (const [key, bounds] of Object.entries(intFields)) {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) {
+      const v = cleanNovelInt(patch[key], bounds[0], bounds[1]);
+      if (v != null) next[key] = v;
+    }
+  }
+
+  if (Array.isArray(patch.correctionNotes)) next.correctionNotes = cleanNovelNotes(patch.correctionNotes);
+  if (Array.isArray(patch.ideaNotes)) next.ideaNotes = cleanNovelNotes(patch.ideaNotes);
+
+  const correctionsToAdd = Array.isArray(patch.correctionsToAdd) ? patch.correctionsToAdd : (patch.correctionToAdd ? [patch.correctionToAdd] : []);
+  const ideasToAdd = Array.isArray(patch.ideasToAdd) ? patch.ideasToAdd : (patch.ideaToAdd ? [patch.ideaToAdd] : []);
+  next.correctionNotes = cleanNovelNotes([...(next.correctionNotes || []), ...correctionsToAdd]);
+  next.ideaNotes = cleanNovelNotes([...(next.ideaNotes || []), ...ideasToAdd]);
+  next.updatedAt = new Date().toISOString();
+
+  try { await env.CASHFLOW_KV.put(alexNovelStateKey(email), JSON.stringify(next)); } catch (_) {}
+  return next;
+}
+
+function alexNovelStatePrompt(state) {
+  const safe = normalizeAlexNovelState(state || {});
+  const hasData = Object.entries(safe).some(([k, v]) => k !== 'updatedAt' && (Array.isArray(v) ? v.length : v != null));
+  const snapshot = hasData ? JSON.stringify(safe) : 'Aucune mémoire de roman enregistrée pour le moment.';
+  return `\n\n✍️ MÉMOIRE PERSISTANTE DU ROMAN — MODULE 4 ET ACCOMPAGNEMENT D'ÉCRITURE\nÉtat actuellement enregistré pour cette personne :\n${snapshot}\n\nRÈGLES DE MÉMOIRE :\n- Utilise ces informations pour reprendre exactement là où la personne en était, sans lui redemander ce qui est déjà connu.\n- Ne confonds jamais progression pédagogique et progression du manuscrit.\n- N'invente aucune donnée manquante.\n- Quand la personne fournit ou confirme une information DURABLE sur son roman (titre, genre, objectif total, total actuel de mots, chapitre, scène actuelle, prochaine scène, rythme d'écriture, idée à garder, correction à faire plus tard), mets la mémoire à jour.\n- Si la personne donne seulement le nombre de mots écrits pendant la séance ET que le total précédent est connu, tu peux calculer le nouveau total. Sinon, demande le total avant de l'inventer.\n- Pendant le premier jet, une incohérence ou une amélioration à faire plus tard va dans correctionsToAdd au lieu d'interrompre automatiquement la rédaction.\n- Une idée future peut aller dans ideasToAdd.\n\nPOUR ENREGISTRER : à la TOUTE FIN de ta réponse, ajoute UN marqueur technique invisible au format exact suivant, sur une seule ligne, sans bloc de code :\n[NOVEL_STATE: {\"currentWords\":19263,\"chapter\":\"Chapitre 11\",\"nextScene\":\"Confrontation avec Marc\",\"correctionsToAdd\":[\"Vérifier la date de naissance de Jeanne\"]}]\nN'inclus QUE les champs réellement nouveaux ou modifiés. N'ajoute aucun marqueur s'il n'y a rien de durable à mémoriser. Le système retirera ce marqueur avant affichage.`;
+}
+
+function extractNovelStatePatch(content) {
+  let text = String(content || '');
+  let merged = null;
+  const re = /\[NOVEL_STATE:\s*(\{[\s\S]*?\})\s*\]/g;
+  text = text.replace(re, (_all, jsonText) => {
+    try {
+      const obj = JSON.parse(jsonText);
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) merged = { ...(merged || {}), ...obj };
+    } catch (_) {}
+    return '';
+  });
+  return { content: text.replace(/\n{3,}/g, '\n\n').trim(), patch: merged };
+}
+
+async function handleAlexNovelState(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const session = await getSessionFromToken(env, body.token);
+  if (!session) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
+  const mode = String(body.mode || 'get').toLowerCase();
+
+  if (mode === 'reset') {
+    try { await env.CASHFLOW_KV.delete(alexNovelStateKey(session.email)); } catch (_) {}
+    return json({ success: true, state: normalizeAlexNovelState({}) });
+  }
+  if (mode === 'patch' || mode === 'set') {
+    const state = await patchAlexNovelState(env, session.email, body.patch || body.state || {});
+    return json({ success: true, state });
+  }
+  const state = await getAlexNovelState(env, session.email);
+  return json({ state });
+}
+
 function normalizeFormationModules(formation) {
   const mods = Array.isArray(formation && formation.modules) ? formation.modules : [];
   return mods.map((m, i) => ({
@@ -2867,6 +3001,7 @@ const url = new URL(request.url);
       if (path === '/api/products' && request.method === 'GET') return await handleListProducts(request, env);
       if (path === '/api/products' && request.method === 'POST') return await handleCreateProduct(request, env);
       if (path === '/api/chat' && request.method === 'POST') return await handleChat(request, env);
+      if (path === '/api/alex/novel-state' && request.method === 'POST') return await handleAlexNovelState(request, env);
 
       // ── Boîte à outils NyXia (Portail Alex) ──
       if (path === '/api/author/titles' && request.method === 'POST') return await handleAuthorTitles(request, env);
@@ -3158,6 +3293,15 @@ async function handleChat(request, env) {
   // Chaque personnage conserve son rôle et sa spécialité dans le portail Alex.
   systemPrompt += PROMPT_MARKER_INSTRUCTIONS;
 
+  // ✍️ Alex conserve une mémoire de manuscrit durable, indépendante de l'historique navigateur.
+  let alexNovelState = null;
+  if (agent === 'alex') {
+    try {
+      alexNovelState = await getAlexNovelState(env, session.email);
+      systemPrompt += alexNovelStatePrompt(alexNovelState);
+    } catch (_) { /* le chat continue même si la mémoire de roman est indisponible */ }
+  }
+
   // Injecte la vraie banque de prompts de l'agent actif, si elle existe dans le KV.
   const bankRaw = await env.CASHFLOW_KV.get(`prompts:${agent}`);
   if (bankRaw) {
@@ -3226,7 +3370,10 @@ async function handleChat(request, env) {
 
         // Déterminer un module actif selon l'intention de la personne (ou sa progression en cours).
         const intent = parseFormationIntent(message || '');
-        const formation = resolveActiveFormation(formations, message || '');
+        // Si la personne parle naturellement sans nommer la formation, on reprend la plus récemment active.
+        const formation = resolveActiveFormation(formations, message || '')
+          || pickLatestProgressFormation(formations, progressAll)
+          || (formations.length === 1 ? formations[0] : null);
         if (formation) {
           const prog = progressAll[formation.id] || null;
           let targetModule = null;
@@ -3379,6 +3526,17 @@ async function handleChat(request, env) {
     if (!piece) break;
     content += piece;
     continueMessages.push({ role: 'assistant', content: piece });
+  }
+
+  // ✍️ Retire le marqueur de mémoire avant affichage et sauvegarde les données durables du roman.
+  if (agent === 'alex') {
+    try {
+      const novelUpdate = extractNovelStatePatch(content);
+      content = novelUpdate.content;
+      if (novelUpdate.patch && session && session.email) {
+        await patchAlexNovelState(env, session.email, novelUpdate.patch);
+      }
+    } catch (_) { /* la mémoire de roman ne doit jamais bloquer la réponse */ }
   }
 
   content = sanitizeLivingVideoMarkers(content, approvedLivingVideoUrls);
