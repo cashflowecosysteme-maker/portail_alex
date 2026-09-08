@@ -4,26 +4,27 @@
   <meta charset="UTF-8">
   <link rel="icon" type="image/png" href="/FavIcon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Studio de couverture KDP — Portail Alex</title>
+  <title>Studio Couverture PRO — Portail Alex</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #090714;
-      --panel: rgba(20, 15, 39, 0.94);
-      --panel-2: rgba(31, 23, 57, 0.92);
-      --line: rgba(167, 126, 255, 0.18);
-      --line-strong: rgba(167, 126, 255, 0.38);
-      --purple: #9a6bff;
-      --purple-2: #6f45dc;
+      --bg: #060a18;
+      --panel: rgba(8, 12, 29, 0.92);
+      --panel-2: rgba(12, 17, 39, 0.90);
+      --line: rgba(167, 139, 250, 0.18);
+      --line-strong: rgba(167, 139, 250, 0.40);
+      --purple: #7B5CFF;
+      --purple-2: #4f46e5;
+      --lavender: #a78bfa;
       --gold: #e9c46a;
-      --pink: #e88bd8;
+      --pink: #d8b4fe;
       --green: #63d8ac;
       --red: #ff7b93;
-      --text: #f7f3ff;
-      --muted: #aaa1bd;
-      --muted-2: #80778f;
+      --text: #f8f7ff;
+      --muted: #a7adc2;
+      --muted-2: #768099;
       --shadow: 0 22px 65px rgba(0, 0, 0, 0.35);
     }
     * { box-sizing: border-box; }
@@ -169,6 +170,57 @@
       .canvas-zone { min-height: 380px; padding: 12px; }
       .export-grid { grid-template-columns: 1fr; }
     }
+
+    /* ═══════════════════════════════════════════
+       STUDIO COUVERTURE PRO — commandes créatives
+    ═══════════════════════════════════════════ */
+    .director-card {
+      margin-top: 14px; padding: 15px; border: 1px solid rgba(233,196,106,.24);
+      border-radius: 14px; background: linear-gradient(135deg, rgba(233,196,106,.08), rgba(123,92,255,.08));
+    }
+    .director-card strong { display:block; font-size:13px; margin-bottom:4px; }
+    .director-card p { margin:0 0 11px; color:var(--muted); font-size:10px; line-height:1.5; }
+    .preset-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .preset-card { position:relative; cursor:pointer; min-width:0; }
+    .preset-card input { position:absolute; opacity:0; pointer-events:none; }
+    .preset-box {
+      min-height:74px; padding:10px; display:flex; flex-direction:column; justify-content:flex-end;
+      border:1px solid var(--line); border-radius:12px; background:rgba(6,10,24,.66); transition:.2s;
+    }
+    .preset-box strong { font-size:10px; margin:0; }
+    .preset-box span { font-size:8px; color:var(--muted); margin-top:3px; line-height:1.25; }
+    .preset-card input:checked + .preset-box {
+      border-color:var(--lavender); background:rgba(123,92,255,.14);
+      box-shadow:0 0 0 3px rgba(123,92,255,.08), 0 8px 24px rgba(0,0,0,.22);
+    }
+    .control-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .range-field { margin-bottom:13px; }
+    .range-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+    .range-head label { margin:0; }
+    .range-value { color:var(--lavender); font-size:10px; font-weight:700; }
+    input[type="range"] { width:100%; accent-color:var(--purple); cursor:pointer; }
+    .tiny-actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:8px; }
+    .tiny-actions .btn { padding:8px 10px; font-size:9px; }
+    .palette-row { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-top:8px; }
+    .palette-chip {
+      height:36px; border:1px solid rgba(255,255,255,.12); border-radius:10px; cursor:pointer;
+      position:relative; overflow:hidden; background:#111;
+    }
+    .palette-chip span { position:absolute; inset:auto 5px 4px; font-size:7px; color:#fff; text-shadow:0 1px 3px #000; }
+    .p-noir-or { background:linear-gradient(135deg,#050505 0 50%,#d7b65d 50%); }
+    .p-nyxia { background:linear-gradient(135deg,#060a18 0 35%,#7B5CFF 35% 70%,#e9c46a 70%); }
+    .p-romance { background:linear-gradient(135deg,#2b1633 0 35%,#b2678e 35% 70%,#f2d6cf 70%); }
+    .p-thriller { background:linear-gradient(135deg,#080808 0 45%,#7f1d1d 45% 75%,#d1d5db 75%); }
+    .pro-note {
+      margin-top:12px; padding:10px 11px; border-radius:11px; border:1px solid rgba(167,139,250,.18);
+      background:rgba(167,139,250,.055); color:var(--muted); font-size:10px; line-height:1.5;
+    }
+    .pro-note b { color:#ddd7ff; }
+    @media (max-width:620px) {
+      .preset-grid { grid-template-columns:1fr 1fr; }
+      .control-grid { grid-template-columns:1fr; }
+    }
+
   </style>
 </head>
 <body>
@@ -178,8 +230,8 @@
       <div class="brand">
         <img src="/Alex.png" alt="Alex">
         <div>
-          <h1>Studio de couverture KDP</h1>
-          <p>Calculateur précis · composition guidée · export prêt à vérifier</p>
+          <h1>Studio Couverture PRO</h1>
+          <p>Direction artistique · composition pro · export KDP prêt à vérifier</p>
         </div>
       </div>
       <div class="top-actions">
@@ -193,7 +245,7 @@
         <div class="intro">
           <span class="intro-badge">✦ Atelier d’écriture d’Alex</span>
           <h2>De ton idée au fichier final</h2>
-          <p>Remplis seulement ce que tu connais. Le studio calcule la tranche, place les zones de sécurité et prépare tes exports sans logiciel compliqué.</p>
+          <p>Construis une couverture digne d’un vrai livre : direction artistique, recadrage, typographie, tranche et exports KDP — sans logiciel compliqué.</p>
         </div>
 
         <div class="section">
@@ -208,6 +260,16 @@
           <div class="field">
             <label for="book-subtitle">Sous-titre <span class="optional">— facultatif</span></label>
             <input id="book-subtitle" type="text" maxlength="220" value="Écrire, structurer et donner vie à son histoire" autocomplete="off">
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="book-series">Nom de série <span class="optional">— facultatif</span></label>
+              <input id="book-series" type="text" maxlength="100" placeholder="Ex. Les Chroniques d'Aster">
+            </div>
+            <div class="field">
+              <label for="book-volume">Tome / volume <span class="optional">— facultatif</span></label>
+              <input id="book-volume" type="text" maxlength="40" placeholder="Ex. Tome 1">
+            </div>
           </div>
           <div class="grid-2">
             <div class="field">
@@ -338,44 +400,166 @@
         <div class="section">
           <div class="section-head">
             <span class="step">3</span>
-            <div><h3>Ambiance visuelle</h3><p>Choisis un résultat, pas une technologie. NyXia sélectionne le bon moteur.</p></div>
+            <div><h3>Direction artistique</h3><p>Choisis une vraie composition de couverture, puis ajuste-la sans logiciel compliqué.</p></div>
           </div>
+
+          <div class="director-card">
+            <strong>✨ Directeur artistique Alex</strong>
+            <p>Alex peut préparer une direction visuelle cohérente avec ton genre, ton titre et ton résumé, puis régler automatiquement une composition de départ.</p>
+            <button type="button" class="btn btn-gold" id="art-director" style="width:100%">Créer ma direction artistique</button>
+          </div>
+
+          <div class="field" style="margin-top:16px">
+            <span class="label">Composition de couverture</span>
+            <div class="preset-grid">
+              <label class="preset-card">
+                <input type="radio" name="cover-preset" value="cinematic" checked>
+                <span class="preset-box"><strong>Cinématique</strong><span>Titre fort en haut, image dominante.</span></span>
+              </label>
+              <label class="preset-card">
+                <input type="radio" name="cover-preset" value="editorial">
+                <span class="preset-box"><strong>Éditoriale</strong><span>Titre élégant, respiration et prestige.</span></span>
+              </label>
+              <label class="preset-card">
+                <input type="radio" name="cover-preset" value="minimal">
+                <span class="preset-box"><strong>Minimaliste</strong><span>Très propre, focal, contemporain.</span></span>
+              </label>
+              <label class="preset-card">
+                <input type="radio" name="cover-preset" value="romance">
+                <span class="preset-box"><strong>Romance</strong><span>Souple, émotionnelle, titre enveloppant.</span></span>
+              </label>
+              <label class="preset-card">
+                <input type="radio" name="cover-preset" value="thriller">
+                <span class="preset-box"><strong>Thriller</strong><span>Impact, contraste, tension.</span></span>
+              </label>
+              <label class="preset-card">
+                <input type="radio" name="cover-preset" value="fantasy">
+                <span class="preset-box"><strong>Fantasy</strong><span>Épique, symbolique, ample.</span></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="control-grid" style="margin-top:14px">
+            <div class="field">
+              <label for="visual-mood">Émotion / ambiance</label>
+              <select id="visual-mood">
+                <option value="cinematic">Cinématographique</option>
+                <option value="mysterious">Mystérieuse</option>
+                <option value="romantic">Romantique</option>
+                <option value="dark">Sombre</option>
+                <option value="luminous">Lumineuse</option>
+                <option value="epic">Épique</option>
+                <option value="intimate">Intime</option>
+                <option value="minimal">Minimaliste</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="visual-style">Style visuel</label>
+              <select id="visual-style">
+                <option value="photo">Photo éditoriale</option>
+                <option value="illustration">Illustration haut de gamme</option>
+                <option value="painterly">Peinture numérique</option>
+                <option value="graphic">Graphique / symbolique</option>
+                <option value="luxury">Luxe éditorial</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="subject-focus">Sujet principal</label>
+            <input id="subject-focus" type="text" maxlength="240" placeholder="Ex. une femme seule devant un vieux manoir, un pendentif ancien, une ville sous la pluie...">
+          </div>
+
+          <div class="field">
+            <label for="art-prompt">Description de l’illustration</label>
+            <textarea id="art-prompt" maxlength="5000" placeholder="Décris ce que tu imagines..."></textarea>
+            <div class="hint">Le studio ajoute ensuite le titre, le sous-titre et le nom d’auteur pour conserver une typographie nette.</div>
+          </div>
+
           <div class="quality-grid" id="quality-grid">
             <label class="quality-card" data-mode="fast">
               <input type="radio" name="quality" value="fast">
-              <span class="quality-box"><strong>⚡ Rapide</strong><span>Direction visuelle rapide.</span><em>Qualité Premium NyXia</em></span>
+              <span class="quality-box"><strong>⚡ Rapide</strong><span>Pour explorer une direction.</span><em>NyXia</em></span>
             </label>
             <label class="quality-card" data-mode="balanced">
               <input type="radio" name="quality" value="balanced" checked>
-              <span class="quality-box"><strong>✦ Normal</strong><span>Excellent rendu de ton idée.</span><em>Qualité Premium NyXia</em></span>
+              <span class="quality-box"><strong>✦ Premium</strong><span>Le meilleur équilibre qualité / vitesse.</span><em>NyXia</em></span>
             </label>
             <label class="quality-card" data-mode="design">
               <input type="radio" name="quality" value="design">
-              <span class="quality-box"><strong>◆ Lent</strong><span>Composition plus raffinée.</span><em>Qualité Premium NyXia</em></span>
+              <span class="quality-box"><strong>◆ Design</strong><span>Composition plus raffinée.</span><em>NyXia</em></span>
             </label>
             <label class="quality-card" data-mode="photo">
               <input type="radio" name="quality" value="photo">
-              <span class="quality-box"><strong>📷 Photo réaliste</strong><span>Rendu crédible et cinématographique.</span><em>Qualité Premium NyXia</em></span>
+              <span class="quality-box"><strong>📷 Photo réaliste</strong><span>Rendu crédible et cinématique.</span><em>NyXia</em></span>
             </label>
           </div>
 
-          <div class="field" style="margin-top:15px">
-            <label for="art-prompt">Décris l’image que tu imagines</label>
-            <textarea id="art-prompt" maxlength="5000" placeholder="Exemple : une femme devant une bibliothèque ancienne, lumière violette et dorée, atmosphère inspirante, composition verticale..."></textarea>
-            <div class="hint">Le titre est ajouté ensuite par le studio pour rester parfaitement lisible.</div>
-          </div>
-          <div class="btn-row" style="margin-bottom:13px">
+          <div class="btn-row" style="margin:13px 0 4px">
             <button type="button" class="btn btn-soft" id="suggest-prompt">✨ Préparer mon idée</button>
-            <button type="button" class="btn btn-soft" id="change-ambiance">🎨 Nouvelle ambiance</button>
+            <button type="button" class="btn btn-soft" id="change-ambiance">🎨 Palette suivante</button>
           </div>
 
-          <div class="grid-2">
+          <div class="section-head" style="margin:18px 0 12px">
+            <span class="step" style="background:rgba(123,92,255,.22);border:1px solid rgba(167,139,250,.3)">A</span>
+            <div><h3>Réglages de l’image</h3><p>Recadre ton illustration pour qu’elle serve vraiment la couverture.</p></div>
+          </div>
+
+          <div class="control-grid">
+            <div class="range-field">
+              <div class="range-head"><label for="image-zoom">Zoom</label><span class="range-value" id="image-zoom-value">100%</span></div>
+              <input id="image-zoom" type="range" min="100" max="190" value="100">
+            </div>
+            <div class="range-field">
+              <div class="range-head"><label for="image-x">Déplacement horizontal</label><span class="range-value" id="image-x-value">0</span></div>
+              <input id="image-x" type="range" min="-50" max="50" value="0">
+            </div>
+            <div class="range-field">
+              <div class="range-head"><label for="image-y">Déplacement vertical</label><span class="range-value" id="image-y-value">0</span></div>
+              <input id="image-y" type="range" min="-50" max="50" value="0">
+            </div>
+            <div class="range-field">
+              <div class="range-head"><label for="overlay-strength">Voile sombre</label><span class="range-value" id="overlay-strength-value">26%</span></div>
+              <input id="overlay-strength" type="range" min="0" max="70" value="26">
+            </div>
+            <div class="range-field">
+              <div class="range-head"><label for="vignette-strength">Vignette</label><span class="range-value" id="vignette-strength-value">45%</span></div>
+              <input id="vignette-strength" type="range" min="0" max="80" value="45">
+            </div>
+          </div>
+
+          <div class="section-head" style="margin:18px 0 12px">
+            <span class="step" style="background:rgba(123,92,255,.22);border:1px solid rgba(167,139,250,.3)">T</span>
+            <div><h3>Typographie</h3><p>Donne au titre une vraie personnalité éditoriale.</p></div>
+          </div>
+
+          <div class="control-grid">
             <div class="field">
               <label for="font-style">Style du titre</label>
               <select id="font-style">
                 <option value="elegant">Élégant</option>
                 <option value="modern">Moderne</option>
                 <option value="impact">Impact</option>
+                <option value="literary">Littéraire</option>
+                <option value="romance">Romance</option>
+                <option value="thriller">Thriller</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="title-align">Alignement</label>
+              <select id="title-align">
+                <option value="center">Centré</option>
+                <option value="left">À gauche</option>
+                <option value="right">À droite</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="text-effect">Effet du titre</label>
+              <select id="text-effect">
+                <option value="shadow">Ombre douce</option>
+                <option value="glow">Glow léger</option>
+                <option value="outline">Contour fin</option>
+                <option value="none">Aucun</option>
               </select>
             </div>
             <div class="field">
@@ -386,10 +570,36 @@
               </div>
             </div>
           </div>
-          <div class="checks">
-            <label class="check"><input id="show-spine-text" type="checkbox" checked> <span>Ajouter le titre sur la tranche quand le nombre de pages le permet.</span></label>
-            <label class="check"><input id="show-guides" type="checkbox" checked> <span>Afficher les repères de coupe et zones sûres dans l’aperçu seulement.</span></label>
+
+          <div class="control-grid">
+            <div class="range-field">
+              <div class="range-head"><label for="title-position">Position du titre</label><span class="range-value" id="title-position-value">14%</span></div>
+              <input id="title-position" type="range" min="7" max="60" value="14">
+            </div>
+            <div class="range-field">
+              <div class="range-head"><label for="title-size">Taille du titre</label><span class="range-value" id="title-size-value">100%</span></div>
+              <input id="title-size" type="range" min="70" max="145" value="100">
+            </div>
+            <div class="range-field">
+              <div class="range-head"><label for="author-position">Position du nom d’auteur</label><span class="range-value" id="author-position-value">92%</span></div>
+              <input id="author-position" type="range" min="70" max="95" value="92">
+            </div>
           </div>
+
+          <div class="checks">
+            <label class="check"><input id="show-title-backdrop" type="checkbox"> <span>Ajouter un voile discret derrière le titre pour améliorer la lisibilité.</span></label>
+            <label class="check"><input id="show-spine-text" type="checkbox" checked> <span>Ajouter le titre sur la tranche quand le nombre de pages le permet.</span></label>
+            <label class="check"><input id="show-guides" type="checkbox" checked> <span>Afficher les zones sûres dans l’aperçu seulement.</span></label>
+          </div>
+
+          <div class="palette-row">
+            <button type="button" class="palette-chip p-nyxia" data-palette="nyxia"><span>NyXia</span></button>
+            <button type="button" class="palette-chip p-noir-or" data-palette="blackgold"><span>Noir & or</span></button>
+            <button type="button" class="palette-chip p-romance" data-palette="romance"><span>Romance</span></button>
+            <button type="button" class="palette-chip p-thriller" data-palette="thriller"><span>Thriller</span></button>
+          </div>
+
+          <div class="pro-note"><b>Astuce PRO :</b> génère d’abord une image sans texte, puis compose le titre ici. C’est ce qui permet d’obtenir une couverture beaucoup plus propre qu’une image IA qui tente d’écrire le titre elle-même.</div>
         </div>
 
         <div class="section">
@@ -448,7 +658,7 @@
   var SAFE_IN = 0.25
   var PRINT_DPI = 300
   var MAX_IMAGE_BYTES = 15 * 1024 * 1024
-  var DRAFT_KEY = 'nyxia_cover_studio_draft_v1'
+  var DRAFT_KEY = 'nyxia_cover_studio_draft_v2'
   var sessionToken = ''
   var providerModes = { fast: false, balanced: false, design: false, photo: false }
   var artworkImage = null
@@ -588,13 +798,30 @@
     return {
       title: byId('book-title').value.trim() || 'Titre du livre',
       subtitle: byId('book-subtitle').value.trim(),
+      series: byId('book-series').value.trim(),
+      volume: byId('book-volume').value.trim(),
       author: byId('book-author').value.trim() || 'Nom d’auteur',
       genre: byId('book-genre').value,
       backText: byId('back-text').value.trim(),
       prompt: byId('art-prompt').value.trim(),
+      preset: currentCoverPreset(),
+      mood: byId('visual-mood').value,
+      visualStyle: byId('visual-style').value,
+      subjectFocus: byId('subject-focus').value.trim(),
       fontStyle: byId('font-style').value,
+      titleAlign: byId('title-align').value,
+      textEffect: byId('text-effect').value,
       textColor: byId('text-color').value,
       accentColor: byId('accent-color').value,
+      imageZoom: Number(byId('image-zoom').value || 100) / 100,
+      imageX: Number(byId('image-x').value || 0) / 100,
+      imageY: Number(byId('image-y').value || 0) / 100,
+      overlayStrength: Number(byId('overlay-strength').value || 26) / 100,
+      vignetteStrength: Number(byId('vignette-strength').value || 45) / 100,
+      titlePosition: Number(byId('title-position').value || 14) / 100,
+      titleSize: Number(byId('title-size').value || 100) / 100,
+      authorPosition: Number(byId('author-position').value || 92) / 100,
+      showTitleBackdrop: byId('show-title-backdrop').checked,
       showSpineText: byId('show-spine-text').checked && c.spineTextAllowed,
       showGuides: byId('show-guides').checked,
       format: currentFormat(),
@@ -607,6 +834,11 @@
       },
       calculation: c
     }
+  }
+
+  function currentCoverPreset() {
+    var selected = document.querySelector('input[name="cover-preset"]:checked')
+    return selected ? selected.value : 'cinematic'
   }
 
   function currentAuthorShape() {
@@ -653,7 +885,9 @@
 
   function fontFamily(style) {
     if (style === 'modern') return 'Outfit, Arial, sans-serif'
-    if (style === 'impact') return 'Impact, Arial Black, sans-serif'
+    if (style === 'impact' || style === 'thriller') return 'Impact, Arial Black, sans-serif'
+    if (style === 'literary') return 'Georgia, Times New Roman, serif'
+    if (style === 'romance') return 'Cormorant Garamond, Georgia, serif'
     return 'Cormorant Garamond, Georgia, serif'
   }
 
@@ -700,14 +934,42 @@
   }
 
   function drawArtwork(ctx, x, y, w, h) {
+    var s = getState()
     ctx.save()
     ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip()
-    if (artworkImage) coverDrawImage(ctx, artworkImage, x, y, w, h)
-    else drawLocalAmbiance(ctx, x, y, w, h)
-    var vignette = ctx.createRadialGradient(x + w * .5, y + h * .42, w * .08, x + w * .5, y + h * .45, w * .78)
-    vignette.addColorStop(0, 'rgba(0,0,0,0)')
-    vignette.addColorStop(1, 'rgba(0,0,0,.52)')
-    ctx.fillStyle = vignette; ctx.fillRect(x, y, w, h)
+
+    if (artworkImage) {
+      var imageRatio = artworkImage.naturalWidth / artworkImage.naturalHeight
+      var targetRatio = w / h
+      var baseW, baseH
+      if (imageRatio > targetRatio) {
+        baseH = h
+        baseW = h * imageRatio
+      } else {
+        baseW = w
+        baseH = w / imageRatio
+      }
+      baseW *= s.imageZoom
+      baseH *= s.imageZoom
+      var dx = x + (w - baseW) / 2 + (s.imageX * w)
+      var dy = y + (h - baseH) / 2 + (s.imageY * h)
+      ctx.drawImage(artworkImage, dx, dy, baseW, baseH)
+    } else {
+      drawLocalAmbiance(ctx, x, y, w, h)
+    }
+
+    if (s.overlayStrength > 0) {
+      ctx.fillStyle = 'rgba(0,0,0,' + s.overlayStrength.toFixed(2) + ')'
+      ctx.fillRect(x, y, w, h)
+    }
+
+    if (s.vignetteStrength > 0) {
+      var vignette = ctx.createRadialGradient(x + w * .5, y + h * .42, w * .08, x + w * .5, y + h * .45, w * .78)
+      vignette.addColorStop(0, 'rgba(0,0,0,0)')
+      vignette.addColorStop(1, 'rgba(0,0,0,' + s.vignetteStrength.toFixed(2) + ')')
+      ctx.fillStyle = vignette
+      ctx.fillRect(x, y, w, h)
+    }
     ctx.restore()
   }
 
@@ -756,24 +1018,108 @@
     return lines.length * lh
   }
 
+  function applyTextEffect(ctx, s, scale) {
+    ctx.shadowBlur = 0
+    ctx.shadowColor = 'transparent'
+    ctx.lineWidth = 0
+    if (s.textEffect === 'shadow') {
+      ctx.shadowColor = 'rgba(0,0,0,.72)'
+      ctx.shadowBlur = Math.max(5, scale * .012)
+      ctx.shadowOffsetY = Math.max(2, scale * .004)
+    } else if (s.textEffect === 'glow') {
+      ctx.shadowColor = s.accentColor
+      ctx.shadowBlur = Math.max(8, scale * .018)
+    }
+  }
+
+  function drawAlignedTextBlock(ctx, text, anchorX, topY, maxWidth, startSize, lineRatio, maxLines, family, weight, color, align) {
+    var size = startSize
+    var lines = []
+    while (size > 12) {
+      ctx.font = weight + ' ' + Math.round(size) + 'px ' + family
+      lines = wrapLines(ctx, text, maxWidth, maxLines)
+      if (lines.length <= maxLines && lines.every(function(line) { return ctx.measureText(line).width <= maxWidth })) break
+      size -= 2
+    }
+    ctx.textAlign = align
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = color
+    var lineHeight = size * lineRatio
+    lines.forEach(function(line, index) {
+      if (getState().textEffect === 'outline') {
+        ctx.save()
+        ctx.strokeStyle = 'rgba(0,0,0,.74)'
+        ctx.lineWidth = Math.max(1.5, size * .035)
+        ctx.strokeText(line, anchorX, topY + index * lineHeight)
+        ctx.restore()
+      }
+      ctx.fillText(line, anchorX, topY + index * lineHeight)
+    })
+    return { height: lines.length * lineHeight, size: size }
+  }
+
+  function presetDefaults(s) {
+    var p = s.preset
+    if (p === 'editorial') return { width:.72, x:.14, align:'left', titleScale:.080, line:1.02, accent:false, backdrop:false }
+    if (p === 'minimal') return { width:.70, x:.15, align:'left', titleScale:.074, line:1.00, accent:false, backdrop:true }
+    if (p === 'romance') return { width:.82, x:.50, align:'center', titleScale:.098, line:.98, accent:true, backdrop:false }
+    if (p === 'thriller') return { width:.86, x:.50, align:'center', titleScale:.118, line:.90, accent:false, backdrop:true }
+    if (p === 'fantasy') return { width:.84, x:.50, align:'center', titleScale:.102, line:.97, accent:true, backdrop:false }
+    return { width:.82, x:.50, align:'center', titleScale:.105, line:1.00, accent:true, backdrop:false }
+  }
+
   function drawFrontComposition(ctx, x, y, w, h, s) {
     ctx.save()
-    var dark = ctx.createLinearGradient(x, y, x, y + h)
-    dark.addColorStop(0, 'rgba(0,0,0,.26)')
-    dark.addColorStop(.42, 'rgba(0,0,0,.08)')
-    dark.addColorStop(1, 'rgba(0,0,0,.72)')
-    ctx.fillStyle = dark; ctx.fillRect(x, y, w, h)
-    var family = fontFamily(s.fontStyle)
-    var titleY = y + h * .13
-    var title = drawCenteredTextBlock(ctx, s.title, x + w / 2, titleY, w * .78, w * .105, 1.02, 4, family, s.fontStyle === 'elegant' ? '700' : '800', s.textColor)
-    ctx.fillStyle = s.accentColor
-    ctx.fillRect(x + w * .38, titleY + title.height + h * .025, w * .24, Math.max(2, h * .003))
-    if (s.subtitle) {
-      drawCenteredTextBlock(ctx, s.subtitle, x + w / 2, titleY + title.height + h * .055, w * .72, w * .036, 1.25, 4, 'Outfit, Arial, sans-serif', '500', s.textColor)
+    var p = presetDefaults(s)
+    var align = s.titleAlign || p.align
+    var anchorX = align === 'left' ? x + w * p.x : (align === 'right' ? x + w * (1 - p.x) : x + w / 2)
+    var maxWidth = w * p.width
+    var titleY = y + h * s.titlePosition
+    var titleSize = w * p.titleScale * s.titleSize
+
+    if (s.showTitleBackdrop || p.backdrop) {
+      var boxX = align === 'center' ? x + w * .07 : (align === 'left' ? x + w * .07 : x + w * .33)
+      var boxW = w * .86
+      ctx.fillStyle = 'rgba(3,5,14,.34)'
+      ctx.fillRect(boxX, titleY - h * .025, boxW, h * .22)
     }
+
+    applyTextEffect(ctx, s, w)
+    var family = fontFamily(s.fontStyle)
+    var title = drawAlignedTextBlock(ctx, s.title, anchorX, titleY, maxWidth, titleSize, p.line, 4, family, s.fontStyle === 'elegant' || s.fontStyle === 'romance' || s.fontStyle === 'literary' ? '700' : '800', s.textColor, align)
+
+    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent'; ctx.shadowOffsetY = 0
+    if (p.accent) {
+      ctx.fillStyle = s.accentColor
+      var accentW = w * .18
+      var accentX = align === 'center' ? x + w*.5 - accentW/2 : (align === 'left' ? x + w*.14 : x + w*.68)
+      ctx.fillRect(accentX, titleY + title.height + h*.018, accentW, Math.max(2, h*.0025))
+    }
+
+    if (s.subtitle) {
+      ctx.font = '500 ' + Math.round(w * .034) + 'px Outfit, Arial, sans-serif'
+      ctx.textAlign = align
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = s.textColor
+      var subtitleY = titleY + title.height + h * (p.accent ? .045 : .025)
+      var subtitleLines = wrapLines(ctx, s.subtitle, maxWidth * .95, 4)
+      subtitleLines.forEach(function(line, i) { ctx.fillText(line, anchorX, subtitleY + i * w * .045) })
+    }
+
+    if (s.series || s.volume) {
+      var topLabel = [s.series, s.volume].filter(Boolean).join(' · ')
+      ctx.font = '600 ' + Math.round(w * .024) + 'px Outfit, Arial, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = s.accentColor
+      ctx.fillText(topLabel.toUpperCase(), x + w/2, y + h*.045, w*.84)
+    }
+
     ctx.font = '600 ' + Math.round(w * .034) + 'px Outfit, Arial, sans-serif'
-    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = s.textColor
-    ctx.fillText(s.author.toUpperCase(), x + w / 2, y + h * .92, w * .76)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'bottom'
+    ctx.fillStyle = s.textColor
+    ctx.fillText(s.author.toUpperCase(), x + w/2, y + h * s.authorPosition, w*.78)
     ctx.restore()
   }
 
@@ -967,10 +1313,36 @@
     var title = byId('book-title').value.trim()
     var genre = byId('book-genre').value
     var back = byId('back-text').value.trim().slice(0, 500)
-    return 'Illustration verticale de couverture pour un livre de genre « ' + genre + ' ». ' +
-      (title ? 'L’univers visuel doit évoquer le titre « ' + title + ' ». ' : '') +
-      (back ? 'Idée du livre : ' + back + ' ' : '') +
-      'Composition forte avec un sujet principal clairement identifiable, espace visuel calme dans la partie supérieure pour ajouter le titre, lumière cinématographique, finition éditoriale professionnelle. Image seule : aucun texte, aucune lettre, aucun logo, aucun filigrane, aucune maquette de livre.'
+    var subject = byId('subject-focus').value.trim()
+    var mood = byId('visual-mood').value
+    var style = byId('visual-style').value
+    return 'Illustration verticale professionnelle de couverture pour un livre de genre « ' + genre + ' ». ' +
+      (subject ? 'Sujet principal : ' + subject + '. ' : '') +
+      'Ambiance : ' + mood + '. Style : ' + style + '. ' +
+      (title ? 'L’univers visuel doit évoquer le titre « ' + title + ' » sans écrire le titre dans l’image. ' : '') +
+      (back ? 'Contexte du livre : ' + back + ' ' : '') +
+      'Composition éditoriale forte, sujet principal clairement identifiable, profondeur, éclairage travaillé, espace visuel exploitable pour la typographie. Image seule : aucun texte, aucune lettre, aucun logo, aucun filigrane, aucune maquette de livre.'
+  }
+
+  function applyDirectorPreset() {
+    var genre = (byId('book-genre').value || '').toLowerCase()
+    var preset = 'cinematic', mood = 'cinematic', font = 'elegant', effect = 'shadow', overlay = 26, vignette = 45
+    if (genre.includes('romance')) { preset='romance'; mood='romantic'; font='romance'; effect='glow'; overlay=15; vignette=28; byId('text-color').value='#fff7fb'; byId('accent-color').value='#e7b7d4' }
+    else if (genre.includes('policier') || genre.includes('horreur')) { preset='thriller'; mood='dark'; font='thriller'; effect='shadow'; overlay=40; vignette=60; byId('text-color').value='#ffffff'; byId('accent-color').value='#b91c1c' }
+    else if (genre.includes('fantasy') || genre.includes('science-fiction')) { preset='fantasy'; mood='epic'; font='elegant'; effect='glow'; overlay=22; vignette=44; byId('text-color').value='#ffffff'; byId('accent-color').value='#e9c46a' }
+    else if (genre.includes('développement') || genre.includes('formation')) { preset='editorial'; mood='luminous'; font='modern'; effect='shadow'; overlay=18; vignette=22; byId('text-color').value='#ffffff'; byId('accent-color').value='#a78bfa' }
+
+    var p = document.querySelector('input[name="cover-preset"][value="' + preset + '"]')
+    if (p) p.checked = true
+    byId('visual-mood').value = mood
+    byId('font-style').value = font
+    byId('text-effect').value = effect
+    byId('overlay-strength').value = overlay
+    byId('vignette-strength').value = vignette
+    byId('art-prompt').value = buildSuggestedPrompt()
+    updateRangeLabels()
+    scheduleRender()
+    showToast('Alex a préparé une direction artistique de départ ✦')
   }
 
   function preparePrompt() {
@@ -978,6 +1350,31 @@
     promptWasPrepared = true
     scheduleRender()
     showToast('Ton idée visuelle est prête. Tu peux la modifier avant de générer.')
+  }
+
+  function applyPalette(name) {
+    if (name === 'blackgold') { byId('text-color').value='#ffffff'; byId('accent-color').value='#d7b65d' }
+    else if (name === 'romance') { byId('text-color').value='#fff7fb'; byId('accent-color').value='#e7b7d4' }
+    else if (name === 'thriller') { byId('text-color').value='#ffffff'; byId('accent-color').value='#b91c1c' }
+    else { byId('text-color').value='#ffffff'; byId('accent-color').value='#e9c46a' }
+    scheduleRender()
+  }
+
+  function updateRangeLabels() {
+    var pairs = [
+      ['image-zoom','image-zoom-value', '%'],
+      ['image-x','image-x-value',''],
+      ['image-y','image-y-value',''],
+      ['overlay-strength','overlay-strength-value','%'],
+      ['vignette-strength','vignette-strength-value','%'],
+      ['title-position','title-position-value','%'],
+      ['title-size','title-size-value','%'],
+      ['author-position','author-position-value','%']
+    ]
+    pairs.forEach(function(p) {
+      var input = byId(p[0]), label = byId(p[1])
+      if (input && label) label.textContent = input.value + p[2]
+    })
   }
 
   async function startGeneration() {
@@ -1264,9 +1661,9 @@
   }
 
   function serializableDraft() {
-    var ids = ['book-title','book-subtitle','book-author','book-genre','back-text','trim-size','page-count','interior-type','paper-type','art-prompt','font-style','text-color','accent-color','author-block-name','author-bio']
+    var ids = ['book-title','book-subtitle','book-series','book-volume','book-author','book-genre','back-text','trim-size','page-count','interior-type','paper-type','visual-mood','visual-style','subject-focus','art-prompt','font-style','title-align','text-effect','text-color','accent-color','image-zoom','image-x','image-y','overlay-strength','vignette-strength','title-position','title-size','author-position','author-block-name','author-bio']
     var values = {}; ids.forEach(function(id) { values[id] = byId(id).value })
-    values.format = currentFormat(); values.quality = currentQuality(); values.spine = byId('show-spine-text').checked; values.guides = byId('show-guides').checked; values.ambiance = ambianceIndex
+    values.format = currentFormat(); values.quality = currentQuality(); values.preset = currentCoverPreset(); values.spine = byId('show-spine-text').checked; values.guides = byId('show-guides').checked; values.titleBackdrop = byId('show-title-backdrop').checked; values.ambiance = ambianceIndex
     values.authorShow = byId('show-author-block').checked; values.authorShape = currentAuthorShape()
     return values
   }
@@ -1288,10 +1685,12 @@
       Object.keys(d).forEach(function(id) { if (byId(id) && typeof d[id] === 'string') byId(id).value = d[id] })
       var f = document.querySelector('input[name="book-format"][value="' + d.format + '"]'); if (f) f.checked = true
       var q = document.querySelector('input[name="quality"][value="' + d.quality + '"]'); if (q) q.checked = true
+      var cp = document.querySelector('input[name="cover-preset"][value="' + d.preset + '"]'); if (cp) cp.checked = true
       var as = document.querySelector('input[name="author-shape"][value="' + d.authorShape + '"]'); if (as) as.checked = true
       if (typeof d.authorShow === 'boolean') byId('show-author-block').checked = d.authorShow
       if (typeof d.spine === 'boolean') byId('show-spine-text').checked = d.spine
       if (typeof d.guides === 'boolean') byId('show-guides').checked = d.guides
+      if (typeof d.titleBackdrop === 'boolean') byId('show-title-backdrop').checked = d.titleBackdrop
       if (Number.isFinite(Number(d.ambiance))) ambianceIndex = Number(d.ambiance)
     } catch (_) {}
   }
@@ -1318,6 +1717,7 @@
       })
     })
     document.querySelectorAll('.tab').forEach(function(tab) { tab.addEventListener('click', function() { switchPreview(tab.getAttribute('data-tab')) }) })
+    byId('art-director').addEventListener('click', applyDirectorPreset)
     byId('suggest-prompt').addEventListener('click', preparePrompt)
     byId('change-ambiance').addEventListener('click', function() { ambianceIndex = (ambianceIndex + 1) % AMBIANCES.length; artworkImage = null; if (artworkObjectUrl) URL.revokeObjectURL(artworkObjectUrl); artworkObjectUrl = ''; byId('provider-pill').textContent = 'Ambiance locale active'; scheduleRender() })
     byId('generate-art').addEventListener('click', startGeneration)
@@ -1331,6 +1731,13 @@
     byId('export-png').addEventListener('click', exportPrintPng)
     byId('export-spec').addEventListener('click', exportSpecifications)
     byId('clear-draft').addEventListener('click', clearDraft)
+    document.querySelectorAll('.palette-chip').forEach(function(btn) {
+      btn.addEventListener('click', function() { applyPalette(btn.getAttribute('data-palette')) })
+    })
+    ;['image-zoom','image-x','image-y','overlay-strength','vignette-strength','title-position','title-size','author-position'].forEach(function(id) {
+      var el = byId(id)
+      if (el) el.addEventListener('input', updateRangeLabels)
+    })
   }
 
   async function init() {
@@ -1341,6 +1748,7 @@
     syncAuthorOptions()
     if (!byId('art-prompt').value.trim()) byId('art-prompt').value = buildSuggestedPrompt()
     await document.fonts.ready.catch(function(){})
+    updateRangeLabels()
     renderPreviews()
     initializeAuth()
   }
