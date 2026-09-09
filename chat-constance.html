@@ -157,6 +157,8 @@
         <div class="chat-header-sub" id="chat-header-sub">Drames humains & émotions</div>
       </div>
       <button type="button" class="btn-new-chat" id="btn-welcome-video" onclick="rejouerVideoAccueil()" title="Revoir la vidéo d'accueil">🎬 Vidéo</button>
+      <button type="button" class="btn-new-chat" id="btn-manuscript" onclick="choisirManuscrit()" title="Importer ou mettre à jour le manuscrit partagé">📖 Manuscrit</button>
+      <input type="file" id="manuscript-file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" style="display:none">
       <button type="button" class="btn-new-chat" onclick="nouveauChat()" title="Effacer cette conversation">✨ Nouveau chat</button>
     </div>
 
@@ -318,6 +320,15 @@
       if (!alreadyPlayed) markVideoAutoplayed('constance')
     }
     addWelcomeTextMessage('constance')
+    refreshManuscriptStatus()
+
+    var mf = document.getElementById('manuscript-file')
+    if (mf) mf.addEventListener('change', function() {
+      var f = this.files && this.files[0]
+      if (!f) return
+      uploadManuscrit(f)
+      this.value = ''
+    })
 
     var chatInput = document.getElementById('chat-input')
     chatInput.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 120) + 'px' })
@@ -523,6 +534,80 @@
       btn.disabled = false
     })
     .catch(function(){ removeTyping(); addBotMessage('Petite interruption... réessaie dans un instant 💜'); btn.disabled = false })
+  }
+
+
+
+  // 📖 MANUSCRIT PARTAGÉ — même manuscrit pour Alex et les six spécialistes.
+  // Il est séparé du trombone 📎, qui reste un fichier ponctuel du chat.
+  function choisirManuscrit() {
+    var input = document.getElementById('manuscript-file')
+    if (input) input.click()
+  }
+
+  function setManuscriptButton(state, label) {
+    var btn = document.getElementById('btn-manuscript')
+    if (!btn) return
+    btn.disabled = state === 'loading'
+    if (label) btn.textContent = label
+    if (state === 'ready') {
+      btn.style.borderColor = 'rgba(0,230,118,0.45)'
+      btn.style.color = '#b9ffd7'
+      btn.style.background = 'rgba(0,230,118,0.08)'
+    } else if (state !== 'loading') {
+      btn.style.borderColor = ''
+      btn.style.color = ''
+      btn.style.background = ''
+    }
+  }
+
+  function refreshManuscriptStatus() {
+    if (!sessionToken) return
+    fetch('/api/alex/manuscript/status', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: sessionToken })
+    })
+    .then(function(r){ return r.json() })
+    .then(function(data) {
+      var m = data && data.manuscript
+      if (m && m.exists) setManuscriptButton('ready', '📖 Manuscrit ✓')
+      else setManuscriptButton('empty', '📖 Manuscrit')
+    })
+    .catch(function(){ setManuscriptButton('empty', '📖 Manuscrit') })
+  }
+
+  function uploadManuscrit(file) {
+    if (!sessionToken || !file) return
+    var ext = (file.name.split('.').pop() || '').toLowerCase()
+    if (['pdf','docx','txt','md'].indexOf(ext) === -1) {
+      addBotMessage('Le manuscrit partagé accepte un **PDF, DOCX, TXT ou MD**. Pour une image ou un fichier ponctuel, utilise plutôt le trombone 📎.')
+      return
+    }
+
+    setManuscriptButton('loading', '⏳ Manuscrit')
+    addBotMessage('⏳ Je prépare **' + file.name + '** comme manuscrit partagé du Portail Alex. La nouvelle version remplacera l’ancienne seulement quand la préparation sera réussie.')
+
+    var fd = new FormData()
+    fd.append('token', sessionToken)
+    fd.append('file', file, file.name)
+
+    fetch('/api/alex/manuscript/import', { method: 'POST', body: fd })
+    .then(function(r){ return r.text().then(function(txt){ var data; try { data = JSON.parse(txt) } catch(e) { data = { error: txt || 'Import impossible.' } } return { ok: r.ok, data: data } }) })
+    .then(function(res) {
+      if (!res.ok || !res.data || !res.data.success) {
+        var err = (res.data && res.data.error) || 'Import impossible pour le moment.'
+        addBotMessage('❌ ' + err)
+        refreshManuscriptStatus()
+        return
+      }
+      var m = res.data.manuscript || {}
+      setManuscriptButton('ready', '📖 Manuscrit ✓')
+      addBotMessage('✅ **' + (m.name || file.name) + '** est maintenant le manuscrit partagé du projet. Alex et ses spécialistes peuvent retrouver les passages utiles sans gros copier-coller.\n\n' + (m.chunks ? '**' + m.chunks + ' passages** ont été indexés. ' : '') + 'Pour une nouvelle version, clique de nouveau sur **📖 Manuscrit**.')
+    })
+    .catch(function() {
+      addBotMessage('❌ Petite interruption pendant l’import. La version précédente du manuscrit reste intacte.')
+      refreshManuscriptStatus()
+    })
   }
 
   function safeLivingVideoUrl(rawUrl) {
