@@ -1465,140 +1465,6 @@ const FORMATION_AGENT = 'alex';
 function formationDocKey(agent, id) { return `formation:${agent}:${id}`; }
 function formationProgressKey(email) { return `formation_progress:${String(email || '').toLowerCase()}`; }
 
-
-// ───────────── ALEX — MÉMOIRE PERSISTANTE DU ROMAN (KV) ─────────────
-// Séparée de la progression pédagogique : la formation sait OÙ la personne est,
-// cette mémoire sait CE qu'elle est réellement en train d'écrire.
-function alexNovelStateKey(email) { return `alex_novel_state:${String(email || '').toLowerCase()}`; }
-
-function cleanNovelText(value, maxLen) {
-  if (value == null) return null;
-  const s = String(value).replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim();
-  return s ? s.slice(0, maxLen || 500) : null;
-}
-
-function cleanNovelInt(value, min, max) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(min, Math.min(max, Math.round(n)));
-}
-
-function cleanNovelNotes(value, maxItems = 60) {
-  if (!Array.isArray(value)) return [];
-  const out = [];
-  for (const item of value) {
-    const s = cleanNovelText(item, 600);
-    if (s && !out.includes(s)) out.push(s);
-    if (out.length >= maxItems) break;
-  }
-  return out;
-}
-
-function normalizeAlexNovelState(raw) {
-  const s = raw && typeof raw === 'object' ? raw : {};
-  return {
-    title: cleanNovelText(s.title, 180),
-    genre: cleanNovelText(s.genre, 120),
-    targetWords: cleanNovelInt(s.targetWords, 0, 300000),
-    currentWords: cleanNovelInt(s.currentWords, 0, 300000),
-    writingDaysPerWeek: cleanNovelInt(s.writingDaysPerWeek, 1, 7),
-    dailyTarget: cleanNovelInt(s.dailyTarget, 0, 20000),
-    sessionGoalWords: cleanNovelInt(s.sessionGoalWords, 0, 20000),
-    lastSessionWords: cleanNovelInt(s.lastSessionWords, 0, 50000),
-    chapter: cleanNovelText(s.chapter, 140),
-    currentScene: cleanNovelText(s.currentScene, 700),
-    nextScene: cleanNovelText(s.nextScene, 700),
-    lastSessionNote: cleanNovelText(s.lastSessionNote, 900),
-    correctionNotes: cleanNovelNotes(s.correctionNotes),
-    ideaNotes: cleanNovelNotes(s.ideaNotes),
-    updatedAt: cleanNovelText(s.updatedAt, 80)
-  };
-}
-
-async function getAlexNovelState(env, email) {
-  if (!email) return normalizeAlexNovelState({});
-  try {
-    const raw = await env.CASHFLOW_KV.get(alexNovelStateKey(email));
-    return raw ? normalizeAlexNovelState(JSON.parse(raw)) : normalizeAlexNovelState({});
-  } catch (_) { return normalizeAlexNovelState({}); }
-}
-
-async function patchAlexNovelState(env, email, patch) {
-  if (!email || !patch || typeof patch !== 'object') return null;
-  const prev = await getAlexNovelState(env, email);
-  const next = { ...prev };
-
-  const textFields = {
-    title: 180, genre: 120, chapter: 140,
-    currentScene: 700, nextScene: 700, lastSessionNote: 900
-  };
-  for (const [key, maxLen] of Object.entries(textFields)) {
-    if (Object.prototype.hasOwnProperty.call(patch, key)) next[key] = cleanNovelText(patch[key], maxLen);
-  }
-
-  const intFields = {
-    targetWords: [0, 300000], currentWords: [0, 300000], writingDaysPerWeek: [1, 7],
-    dailyTarget: [0, 20000], sessionGoalWords: [0, 20000], lastSessionWords: [0, 50000]
-  };
-  for (const [key, bounds] of Object.entries(intFields)) {
-    if (Object.prototype.hasOwnProperty.call(patch, key)) {
-      const v = cleanNovelInt(patch[key], bounds[0], bounds[1]);
-      if (v != null) next[key] = v;
-    }
-  }
-
-  if (Array.isArray(patch.correctionNotes)) next.correctionNotes = cleanNovelNotes(patch.correctionNotes);
-  if (Array.isArray(patch.ideaNotes)) next.ideaNotes = cleanNovelNotes(patch.ideaNotes);
-
-  const correctionsToAdd = Array.isArray(patch.correctionsToAdd) ? patch.correctionsToAdd : (patch.correctionToAdd ? [patch.correctionToAdd] : []);
-  const ideasToAdd = Array.isArray(patch.ideasToAdd) ? patch.ideasToAdd : (patch.ideaToAdd ? [patch.ideaToAdd] : []);
-  next.correctionNotes = cleanNovelNotes([...(next.correctionNotes || []), ...correctionsToAdd]);
-  next.ideaNotes = cleanNovelNotes([...(next.ideaNotes || []), ...ideasToAdd]);
-  next.updatedAt = new Date().toISOString();
-
-  try { await env.CASHFLOW_KV.put(alexNovelStateKey(email), JSON.stringify(next)); } catch (_) {}
-  return next;
-}
-
-function alexNovelStatePrompt(state) {
-  const safe = normalizeAlexNovelState(state || {});
-  const hasData = Object.entries(safe).some(([k, v]) => k !== 'updatedAt' && (Array.isArray(v) ? v.length : v != null));
-  const snapshot = hasData ? JSON.stringify(safe) : 'Aucune mémoire de roman enregistrée pour le moment.';
-  return `\n\n✍️ MÉMOIRE PERSISTANTE DU ROMAN — MODULE 4 ET ACCOMPAGNEMENT D'ÉCRITURE\nÉtat actuellement enregistré pour cette personne :\n${snapshot}\n\nRÈGLES DE MÉMOIRE :\n- Utilise ces informations pour reprendre exactement là où la personne en était, sans lui redemander ce qui est déjà connu.\n- Ne confonds jamais progression pédagogique et progression du manuscrit.\n- N'invente aucune donnée manquante.\n- Quand la personne fournit ou confirme une information DURABLE sur son roman (titre, genre, objectif total, total actuel de mots, chapitre, scène actuelle, prochaine scène, rythme d'écriture, idée à garder, correction à faire plus tard), mets la mémoire à jour.\n- Si la personne donne seulement le nombre de mots écrits pendant la séance ET que le total précédent est connu, tu peux calculer le nouveau total. Sinon, demande le total avant de l'inventer.\n- Pendant le premier jet, une incohérence ou une amélioration à faire plus tard va dans correctionsToAdd au lieu d'interrompre automatiquement la rédaction.\n- Une idée future peut aller dans ideasToAdd.\n\nPOUR ENREGISTRER : à la TOUTE FIN de ta réponse, ajoute UN marqueur technique invisible au format exact suivant, sur une seule ligne, sans bloc de code :\n[NOVEL_STATE: {\"currentWords\":19263,\"chapter\":\"Chapitre 11\",\"nextScene\":\"Confrontation avec Marc\",\"correctionsToAdd\":[\"Vérifier la date de naissance de Jeanne\"]}]\nN'inclus QUE les champs réellement nouveaux ou modifiés. N'ajoute aucun marqueur s'il n'y a rien de durable à mémoriser. Le système retirera ce marqueur avant affichage.`;
-}
-
-function extractNovelStatePatch(content) {
-  let text = String(content || '');
-  let merged = null;
-  const re = /\[NOVEL_STATE:\s*(\{[\s\S]*?\})\s*\]/g;
-  text = text.replace(re, (_all, jsonText) => {
-    try {
-      const obj = JSON.parse(jsonText);
-      if (obj && typeof obj === 'object' && !Array.isArray(obj)) merged = { ...(merged || {}), ...obj };
-    } catch (_) {}
-    return '';
-  });
-  return { content: text.replace(/\n{3,}/g, '\n\n').trim(), patch: merged };
-}
-
-async function handleAlexNovelState(request, env) {
-  const body = await request.json().catch(() => ({}));
-  const session = await getSessionFromToken(env, body.token);
-  if (!session) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
-  const mode = String(body.mode || 'get').toLowerCase();
-
-  if (mode === 'reset') {
-    try { await env.CASHFLOW_KV.delete(alexNovelStateKey(session.email)); } catch (_) {}
-    return json({ success: true, state: normalizeAlexNovelState({}) });
-  }
-  if (mode === 'patch' || mode === 'set') {
-    const state = await patchAlexNovelState(env, session.email, body.patch || body.state || {});
-    return json({ success: true, state });
-  }
-  const state = await getAlexNovelState(env, session.email);
-  return json({ state });
-}
-
 function normalizeFormationModules(formation) {
   const mods = Array.isArray(formation && formation.modules) ? formation.modules : [];
   return mods.map((m, i) => ({
@@ -3001,7 +2867,11 @@ const url = new URL(request.url);
       if (path === '/api/products' && request.method === 'GET') return await handleListProducts(request, env);
       if (path === '/api/products' && request.method === 'POST') return await handleCreateProduct(request, env);
       if (path === '/api/chat' && request.method === 'POST') return await handleChat(request, env);
-      if (path === '/api/alex/novel-state' && request.method === 'POST') return await handleAlexNovelState(request, env);
+
+      // ── Alex : mémoire pédagogique + manuscrit privé ──
+      if (path === '/api/alex/manuscript/status' && request.method === 'POST') return await handleAlexManuscriptStatus(request, env);
+      if (path === '/api/alex/manuscript/import' && request.method === 'POST') return await handleAlexManuscriptImport(request, env);
+      if (path === '/api/alex/manuscript/delete' && request.method === 'POST') return await handleAlexManuscriptDelete(request, env);
 
       // ── Boîte à outils NyXia (Portail Alex) ──
       if (path === '/api/author/titles' && request.method === 'POST') return await handleAuthorTitles(request, env);
@@ -3258,6 +3128,491 @@ async function handleLogout(request, env) {
 }
 
 
+
+// ───────────── ALEX — PÉDAGOGIE CONTINUE + MÉMOIRE + MANUSCRIT ─────────────
+// Couche additive : ne remplace ni la Formation Vivante, ni le cerveau Vectorize de Diane.
+// Elle ajoute :
+// 1) une mémoire pédagogique persistante par étudiant ;
+// 2) une Bible Vivante légère du projet ;
+// 3) un manuscrit privé converti en Markdown puis vectorisé dans un namespace isolé.
+
+const ALEX_CONTINUOUS_TEACHING_PROTOCOL = `
+
+🎓 ALEX — ENSEIGNEMENT CONTINU (règle permanente)
+
+La Formation Vivante est le parcours principal de l'étudiant, mais elle ne limite jamais ce que tu peux enseigner.
+Ta bibliothèque vectorisée de Diane est ton savoir pédagogique privé : l'étudiant n'a pas besoin de connaître les noms internes des documents ou des leçons. En revanche, il DOIT apprendre les concepts utiles contenus dans ce savoir.
+
+Quand une difficulté d'écriture apparaît, choisis discrètement le bon mode :
+- ENSEIGNER : le concept est nouveau ou mal compris. Explique-le brièvement, puis relie-le au roman.
+- ACCOMPAGNER : le concept est connu mais encore fragile. Pose une question structurante et fais pratiquer.
+- ÉVALUER : le concept est déjà bien pratiqué. Demande d'abord à l'étudiant d'analyser lui-même, puis donne ton feedback.
+- RÉPONDRE : aucune leçon n'est nécessaire. Réponds directement sans transformer chaque échange en cours.
+
+Ton but n'est jamais de fabriquer une dépendance envers toi. Tu aides l'étudiant à comprendre POURQUOI, à essayer lui-même, à recevoir du feedback, puis à réutiliser le raisonnement de façon autonome.
+
+RÈGLES IMPORTANTES :
+- Quand des extraits des formations de Diane sont présents dans ton contexte, ils sont prioritaires comme matière pédagogique. Tu peux utiliser ton intelligence pour expliquer, relier et adapter, mais tu n'inventes jamais un enseignement attribué à Diane.
+- N'annonce pas « je consulte telle leçon » et ne révèle pas les noms techniques internes de la bibliothèque, sauf si la personne demande explicitement la provenance.
+- Ne recommence pas un cours complet si le profil pédagogique indique que le concept est déjà pratiqué ou autonome.
+- Ne déclare JAMAIS une compétence autonome simplement parce que l'étudiant dit « oui », « je comprends » ou reste silencieux. L'autonomie exige une application correcte et indépendante observée dans une conversation ultérieure.
+- Une erreur ponctuelle après une compétence acquise ne supprime pas automatiquement l'apprentissage : note plutôt qu'une révision peut être utile.
+
+📖 MANUSCRIT PRIVÉ DE L'ÉTUDIANT
+Quand des extraits du manuscrit sont fournis dans ton contexte, traite-les comme le travail privé de CET étudiant. Ils sont complètement séparés des formations de Diane.
+Tu peux les analyser, les comparer avec les principes pédagogiques et y repérer des éléments utiles, mais tu ne les présentes jamais comme des enseignements de Diane et tu ne prétends jamais avoir lu une partie qui n'est pas dans les extraits ou dans la Bible Vivante.
+
+🧠 MÉMOIRE PÉDAGOGIQUE ET BIBLE VIVANTE — MARQUEUR INTERNE
+À la toute fin de ta réponse, ajoute TOUJOURS un bloc machine [ALEX_STATE] en JSON valide. Ce bloc sera retiré avant affichage et l'étudiant ne le verra pas.
+Il sert uniquement à conserver la continuité pédagogique et les décisions du projet.
+
+Format exact :
+[ALEX_STATE]
+{"skills":[],"difficulties":[],"bible_patch":{},"continuity":{}}
+[/ALEX_STATE]
+
+- skills : uniquement les concepts réellement introduits, pratiqués ou démontrés autonomes dans CET échange. Format : {"concept":"...","status":"introduced|practiced|autonomous","evidence":"preuve très courte"}.
+- difficulties : difficultés d'écriture récurrentes ou utiles à revisiter, formulées brièvement.
+- bible_patch : uniquement les nouvelles décisions du projet. Champs permis : title, genre, premise, characters, places, rules, plot, threads, decisions. Les listes contiennent de courtes notes, jamais de longs extraits du manuscrit.
+- continuity : peut contenir current_focus et next_step, chacun très court.
+
+Ne mémorise jamais dans ce bloc des données personnelles sensibles, médicales, sexuelles, financières, religieuses ou autres informations privées sans rapport direct avec la construction du projet d'écriture. Pour un récit autobiographique, conserve seulement les décisions NARRATIVES nécessaires, pas les détails personnels sensibles.
+Si rien n'a changé, renvoie simplement des tableaux/objets vides.
+Le bloc [ALEX_STATE] doit toujours venir APRÈS la réponse destinée à l'étudiant.`;
+
+const ALEX_STATE_VERSION = 1;
+const ALEX_MANUSCRIPT_MAX_CHARS_PER_CHUNK = 3600;
+const ALEX_MANUSCRIPT_OVERLAP_CHARS = 280;
+
+function alexCompactString(value, max = 300) {
+  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function alexNormalizeKey(value) {
+  return alexCompactString(value, 160).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function alexStudentScope(email) {
+  const normalized = String(email || '').toLowerCase().trim();
+  if (!normalized) return '';
+  return (await sha256Hex('alex-student:' + normalized)).slice(0, 32);
+}
+
+async function alexStateKey(email) {
+  const scope = await alexStudentScope(email);
+  return scope ? `alex_student_state:${scope}` : '';
+}
+
+async function alexManuscriptKeys(email) {
+  const scope = await alexStudentScope(email);
+  if (!scope) return null;
+  return {
+    scope,
+    meta: `alex_manuscript_meta:${scope}`,
+    md: `alex_manuscript_md:${scope}`,
+    ids: `alex_manuscript_ids:${scope}`
+  };
+}
+
+function defaultAlexStudentState() {
+  return {
+    version: ALEX_STATE_VERSION,
+    skills: {},
+    difficulties: [],
+    bible: {
+      title: '', genre: '', premise: '',
+      characters: [], places: [], rules: [], plot: [], threads: [], decisions: []
+    },
+    continuity: { current_focus: '', next_step: '' },
+    updatedAt: ''
+  };
+}
+
+async function getAlexStudentState(env, email) {
+  const key = await alexStateKey(email);
+  if (!key) return defaultAlexStudentState();
+  try {
+    const raw = await env.CASHFLOW_KV.get(key);
+    if (!raw) return defaultAlexStudentState();
+    const parsed = JSON.parse(raw);
+    return { ...defaultAlexStudentState(), ...parsed, bible: { ...defaultAlexStudentState().bible, ...(parsed.bible || {}) }, continuity: { ...defaultAlexStudentState().continuity, ...(parsed.continuity || {}) } };
+  } catch (_) {
+    return defaultAlexStudentState();
+  }
+}
+
+async function saveAlexStudentState(env, email, state) {
+  const key = await alexStateKey(email);
+  if (!key) return;
+  state.version = ALEX_STATE_VERSION;
+  state.updatedAt = new Date().toISOString();
+  await env.CASHFLOW_KV.put(key, JSON.stringify(state));
+}
+
+function alexUniqueNotes(existing, incoming, maxItems = 40) {
+  const out = [];
+  const seen = new Set();
+  for (const item of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+    const clean = alexCompactString(item, 420);
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function mergeAlexStatePatch(state, patch) {
+  const next = { ...defaultAlexStudentState(), ...state };
+  next.skills = { ...(state && state.skills ? state.skills : {}) };
+  next.bible = { ...defaultAlexStudentState().bible, ...(state && state.bible ? state.bible : {}) };
+  next.continuity = { ...defaultAlexStudentState().continuity, ...(state && state.continuity ? state.continuity : {}) };
+
+  const rank = { introduced: 1, practiced: 2, autonomous: 3 };
+  const skillUpdates = Array.isArray(patch && patch.skills) ? patch.skills : [];
+  for (const item of skillUpdates) {
+    const concept = alexCompactString(item && item.concept, 120);
+    const status = alexCompactString(item && item.status, 20).toLowerCase();
+    if (!concept || !rank[status]) continue;
+    const key = alexNormalizeKey(concept);
+    if (!key) continue;
+    const prev = next.skills[key] || null;
+    const chosenStatus = !prev || rank[status] >= rank[prev.status] ? status : prev.status;
+    next.skills[key] = {
+      concept,
+      status: chosenStatus,
+      evidence: alexCompactString(item && item.evidence, 240) || (prev && prev.evidence) || '',
+      updatedAt: new Date().toISOString()
+    };
+  }
+  // Garde les compétences les plus récemment touchées si le profil devient énorme.
+  const skillEntries = Object.entries(next.skills);
+  if (skillEntries.length > 60) {
+    skillEntries.sort((a, b) => String(b[1].updatedAt || '').localeCompare(String(a[1].updatedAt || '')));
+    next.skills = Object.fromEntries(skillEntries.slice(0, 60));
+  }
+
+  next.difficulties = alexUniqueNotes(next.difficulties, patch && patch.difficulties, 14);
+
+  const bp = patch && patch.bible_patch && typeof patch.bible_patch === 'object' ? patch.bible_patch : {};
+  for (const field of ['title', 'genre', 'premise']) {
+    const val = alexCompactString(bp[field], field === 'premise' ? 600 : 180);
+    if (val) next.bible[field] = val;
+  }
+  for (const field of ['characters', 'places', 'rules', 'plot', 'threads', 'decisions']) {
+    next.bible[field] = alexUniqueNotes(next.bible[field], bp[field], field === 'characters' ? 50 : 40);
+  }
+
+  const c = patch && patch.continuity && typeof patch.continuity === 'object' ? patch.continuity : {};
+  const currentFocus = alexCompactString(c.current_focus, 300);
+  const nextStep = alexCompactString(c.next_step, 300);
+  if (currentFocus) next.continuity.current_focus = currentFocus;
+  if (nextStep) next.continuity.next_step = nextStep;
+
+  return next;
+}
+
+function extractAlexStateMarker(content) {
+  const source = String(content || '');
+  const re = /\[ALEX_STATE\]\s*([\s\S]*?)\s*\[\/ALEX_STATE\]/giu;
+  let patch = null;
+  let match;
+  while ((match = re.exec(source)) !== null) {
+    try {
+      const raw = String(match[1] || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') patch = parsed;
+    } catch (_) {}
+  }
+  return { content: source.replace(re, '').replace(/\n{3,}/g, '\n\n').trim(), patch };
+}
+
+function buildAlexStudentStateInjection(state, manuscriptMeta) {
+  const parts = ['🧠 CONTINUITÉ PRIVÉE DE L\'ÉTUDIANT (ne récite pas cette fiche; utilise-la seulement pour éviter de recommencer à zéro) :'];
+  const skills = Object.values((state && state.skills) || {});
+  if (skills.length) {
+    parts.push('Compétences observées :');
+    for (const s of skills.slice(0, 30)) parts.push(`- ${s.concept}: ${s.status}`);
+  } else {
+    parts.push('Compétences observées : aucune encore.');
+  }
+  if (state && Array.isArray(state.difficulties) && state.difficulties.length) {
+    parts.push('Points à revisiter : ' + state.difficulties.slice(0, 8).join(' | '));
+  }
+  const b = (state && state.bible) || {};
+  const bibleLines = [];
+  if (b.title) bibleLines.push('Titre : ' + b.title);
+  if (b.genre) bibleLines.push('Genre : ' + b.genre);
+  if (b.premise) bibleLines.push('Prémisse : ' + b.premise);
+  for (const field of ['characters', 'places', 'rules', 'plot', 'threads', 'decisions']) {
+    const vals = Array.isArray(b[field]) ? b[field].slice(0, 12) : [];
+    if (vals.length) bibleLines.push(field + ' : ' + vals.join(' | '));
+  }
+  if (bibleLines.length) parts.push('Bible Vivante :\n' + bibleLines.join('\n'));
+  if (state && state.continuity) {
+    if (state.continuity.current_focus) parts.push('Travail en cours : ' + state.continuity.current_focus);
+    if (state.continuity.next_step) parts.push('Prochaine étape mémorisée : ' + state.continuity.next_step);
+  }
+  if (manuscriptMeta && manuscriptMeta.exists) {
+    parts.push(`Manuscrit disponible : « ${alexCompactString(manuscriptMeta.name, 160)} » · ${manuscriptMeta.chunks || 0} passage(s) indexé(s).`);
+  } else {
+    parts.push('Manuscrit persistant : aucun manuscrit importé pour le moment.');
+  }
+  return parts.join('\n');
+}
+
+function alexSafeFileName(name) {
+  const cleaned = String(name || 'manuscrit').replace(/[\\/\0]/g, '_').replace(/\s+/g, ' ').trim();
+  return cleaned.slice(0, 180) || 'manuscrit';
+}
+
+function alexFileExtension(name) {
+  const m = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+  return m ? m[1] : '';
+}
+
+function alexChunkMarkdown(markdown, maxChars = ALEX_MANUSCRIPT_MAX_CHARS_PER_CHUNK, overlapChars = ALEX_MANUSCRIPT_OVERLAP_CHARS) {
+  const source = String(markdown || '').replace(/\r\n?/g, '\n').replace(/\u0000/g, '').trim();
+  if (!source) return [];
+  const paragraphs = source.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  const chunks = [];
+  let buffer = '';
+  let heading = '';
+
+  function pushBuffer() {
+    const text = buffer.trim();
+    if (!text) return;
+    chunks.push({ text, section: heading || 'Manuscrit' });
+    const tail = text.slice(Math.max(0, text.length - overlapChars));
+    buffer = tail ? tail : '';
+  }
+
+  for (const para of paragraphs) {
+    const h = para.match(/^#{1,6}\s+(.+)$/m);
+    if (h && h[1]) heading = alexCompactString(h[1], 180);
+
+    // Très gros paragraphe : le découper sans dépasser le modèle d'embedding.
+    if (para.length > maxChars) {
+      if (buffer.trim()) pushBuffer();
+      let start = 0;
+      while (start < para.length) {
+        const end = Math.min(start + maxChars, para.length);
+        const part = para.slice(start, end).trim();
+        if (part) chunks.push({ text: part, section: heading || 'Manuscrit' });
+        if (end >= para.length) break;
+        start = Math.max(end - overlapChars, start + 1);
+      }
+      buffer = '';
+      continue;
+    }
+
+    const candidate = buffer ? buffer + '\n\n' + para : para;
+    if (candidate.length > maxChars && buffer.trim()) pushBuffer();
+    buffer = buffer ? buffer + '\n\n' + para : para;
+  }
+  if (buffer.trim()) {
+    const text = buffer.trim();
+    chunks.push({ text, section: heading || 'Manuscrit' });
+  }
+
+  // Évite un doublon exact éventuel créé par l'overlap.
+  const unique = [];
+  const seen = new Set();
+  for (const c of chunks) {
+    const key = c.text;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(c);
+  }
+  return unique;
+}
+
+async function getAlexManuscriptMeta(env, email) {
+  const keys = await alexManuscriptKeys(email);
+  if (!keys) return { exists: false };
+  try {
+    const raw = await env.CASHFLOW_KV.get(keys.meta);
+    if (!raw) return { exists: false };
+    const meta = JSON.parse(raw);
+    return { exists: true, ...meta };
+  } catch (_) {
+    return { exists: false };
+  }
+}
+
+async function retrieveAlexManuscript(env, email, query, topK = 7) {
+  if (!query || !String(query).trim()) return '';
+  const meta = await getAlexManuscriptMeta(env, email);
+  if (!meta.exists || !meta.namespace) return '';
+  try {
+    const embeddings = await env.AI.run('@cf/baai/bge-m3', { text: [String(query)] });
+    const results = await env.VECTORIZE_INDEX.query(embeddings.data[0], {
+      topK,
+      returnMetadata: 'all',
+      namespace: meta.namespace
+    });
+    const matches = (results.matches || []).filter(m => m.score > 0.28);
+    if (!matches.length) return '';
+    return matches.map((m, i) => {
+      const md = (m.metadata && m.metadata.texte_original) || '';
+      const section = (m.metadata && m.metadata.section) || 'Manuscrit';
+      return `— Extrait ${i + 1} · ${section}\n${md}`;
+    }).join('\n\n');
+  } catch (e) {
+    console.error('Erreur manuscrit Vectorize:', e);
+    return '';
+  }
+}
+
+async function handleAlexManuscriptStatus(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const session = await getSessionFromToken(env, body.token);
+  if (!session) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
+  const meta = await getAlexManuscriptMeta(env, session.email);
+  return json({ success: true, manuscript: meta });
+}
+
+async function handleAlexManuscriptImport(request, env) {
+  const form = await request.formData().catch(() => null);
+  if (!form) return json({ error: 'Envoi de fichier invalide.' }, 400);
+  const token = String(form.get('token') || '');
+  const session = await getSessionFromToken(env, token);
+  if (!session) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
+
+  const file = form.get('file');
+  if (!file || typeof file.arrayBuffer !== 'function') return json({ error: 'Choisis un manuscrit à importer.' }, 400);
+  const name = alexSafeFileName(file.name || 'manuscrit');
+  const ext = alexFileExtension(name);
+  const allowed = new Set(['pdf', 'docx', 'txt', 'md']);
+  if (!allowed.has(ext)) return json({ error: 'Format accepté : PDF, DOCX, TXT ou MD.' }, 415);
+
+  let markdown = '';
+  try {
+    if (ext === 'txt' || ext === 'md') {
+      markdown = await file.text();
+    } else {
+      if (!env.AI || typeof env.AI.toMarkdown !== 'function') {
+        return json({ error: 'La conversion de document nécessite le binding Workers AI « AI ».' }, 500);
+      }
+      const converted = await env.AI.toMarkdown(
+        { name, blob: file },
+        { conversionOptions: { output: { format: 'markdown' }, pdf: { metadata: false } } }
+      );
+      const result = Array.isArray(converted) ? converted[0] : converted;
+      if (!result || result.format === 'error') {
+        return json({ error: 'Impossible de convertir ce document en Markdown.' + (result && result.error ? ' ' + String(result.error).slice(0, 220) : '') }, 422);
+      }
+      markdown = String(result.data || '');
+    }
+  } catch (e) {
+    console.error('Conversion manuscrit:', e);
+    return json({ error: 'La conversion du manuscrit a échoué. Réessaie avec un PDF exporté depuis Word/Google Docs ou un DOCX.' }, 422);
+  }
+
+  markdown = String(markdown || '').replace(/\r\n?/g, '\n').trim();
+  if (markdown.length < 40) return json({ error: 'Le document ne contient pas assez de texte exploitable.' }, 422);
+  const markdownBytes = new TextEncoder().encode(markdown).byteLength;
+  if (markdownBytes > 20 * 1024 * 1024) return json({ error: 'Ce manuscrit dépasse la taille prévue pour la mémoire privée d’Alex. Essaie une version texte plus légère.' }, 413);
+
+  const chunks = alexChunkMarkdown(markdown);
+  if (!chunks.length) return json({ error: 'Aucun passage exploitable n’a pu être préparé.' }, 422);
+
+  const keys = await alexManuscriptKeys(session.email);
+  const previousMeta = await getAlexManuscriptMeta(env, session.email);
+  let previousIds = [];
+  try {
+    const rawIds = await env.CASHFLOW_KV.get(keys.ids);
+    previousIds = rawIds ? JSON.parse(rawIds) : [];
+    if (!Array.isArray(previousIds)) previousIds = [];
+  } catch (_) { previousIds = []; }
+
+  const versionHash = (await sha256Hex(name + ':' + markdown.length + ':' + markdown.slice(0, 1200) + ':' + Date.now())).slice(0, 12);
+  const namespace = `alex-manuscript-${keys.scope}-${versionHash}`;
+  const ids = [];
+
+  try {
+    // Embeddings par lots pour limiter les sous-requêtes tout en gardant des passages fins.
+    const batchSize = 24;
+    for (let start = 0; start < chunks.length; start += batchSize) {
+      const batch = chunks.slice(start, start + batchSize);
+      const texts = batch.map(c => c.text.slice(0, 8000));
+      const embeddings = await env.AI.run('@cf/baai/bge-m3', { text: texts });
+      const vectors = batch.map((c, j) => {
+        const idx = start + j;
+        const id = `am-${keys.scope.slice(0, 12)}-${versionHash}-${String(idx + 1).padStart(4, '0')}`;
+        ids.push(id);
+        return {
+          id,
+          values: embeddings.data[j],
+          namespace,
+          metadata: {
+            texte_original: c.text.slice(0, 5200),
+            section: alexCompactString(c.section, 180),
+            source: name,
+            kind: 'student_manuscript',
+            chunk: String(idx + 1)
+          }
+        };
+      });
+      await env.VECTORIZE_INDEX.upsert(vectors);
+    }
+
+    const meta = {
+      name,
+      format: ext,
+      chunks: chunks.length,
+      characters: markdown.length,
+      namespace,
+      importedAt: new Date().toISOString()
+    };
+    // Le Markdown devient la copie de travail privée d'Alex.
+    await env.CASHFLOW_KV.put(keys.md, markdown);
+    await env.CASHFLOW_KV.put(keys.ids, JSON.stringify(ids));
+    await env.CASHFLOW_KV.put(keys.meta, JSON.stringify(meta));
+
+    // Nettoyage best-effort de l'ancienne version APRÈS succès de la nouvelle.
+    if (previousIds.length) {
+      for (let i = 0; i < previousIds.length; i += 500) {
+        try { await env.VECTORIZE_INDEX.deleteByIds(previousIds.slice(i, i + 500)); } catch (_) {}
+      }
+    }
+
+    return json({ success: true, manuscript: { exists: true, ...meta }, message: `Manuscrit « ${name} » prêt pour Alex.` });
+  } catch (e) {
+    console.error('Indexation manuscrit:', e);
+    // Ne remplace pas la méta de l'ancienne version si l'import échoue.
+    return json({ error: 'Le document a été converti, mais son indexation a échoué. Ton ancien manuscrit reste actif.' }, 500);
+  }
+}
+
+async function handleAlexManuscriptDelete(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const session = await getSessionFromToken(env, body.token);
+  if (!session) return json({ error: 'Session expirée. Reconnecte-toi.' }, 401);
+  const keys = await alexManuscriptKeys(session.email);
+  let ids = [];
+  try {
+    const raw = await env.CASHFLOW_KV.get(keys.ids);
+    ids = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(ids)) ids = [];
+  } catch (_) {}
+  for (let i = 0; i < ids.length; i += 500) {
+    try { await env.VECTORIZE_INDEX.deleteByIds(ids.slice(i, i + 500)); } catch (_) {}
+  }
+  await Promise.allSettled([
+    env.CASHFLOW_KV.delete(keys.meta),
+    env.CASHFLOW_KV.delete(keys.md),
+    env.CASHFLOW_KV.delete(keys.ids)
+  ]);
+  return json({ success: true });
+}
+
+
 // ───────────── CHAT (NyXia + Alphas) ─────────────
 
 async function handleChat(request, env) {
@@ -3293,13 +3648,20 @@ async function handleChat(request, env) {
   // Chaque personnage conserve son rôle et sa spécialité dans le portail Alex.
   systemPrompt += PROMPT_MARKER_INSTRUCTIONS;
 
-  // ✍️ Alex conserve une mémoire de manuscrit durable, indépendante de l'historique navigateur.
-  let alexNovelState = null;
-  if (agent === 'alex') {
+
+  // Alex seulement : continuité pédagogique persistante + Bible Vivante.
+  let alexStudentState = null;
+  let alexManuscriptMeta = null;
+  if (agent === 'alex' && session && session.email) {
     try {
-      alexNovelState = await getAlexNovelState(env, session.email);
-      systemPrompt += alexNovelStatePrompt(alexNovelState);
-    } catch (_) { /* le chat continue même si la mémoire de roman est indisponible */ }
+      alexStudentState = await getAlexStudentState(env, session.email);
+      alexManuscriptMeta = await getAlexManuscriptMeta(env, session.email);
+      systemPrompt += ALEX_CONTINUOUS_TEACHING_PROTOCOL;
+      systemPrompt += `\n\n${buildAlexStudentStateInjection(alexStudentState, alexManuscriptMeta)}`;
+    } catch (_) {
+      // Le chat reste fonctionnel si la mémoire persistante est temporairement indisponible.
+      systemPrompt += ALEX_CONTINUOUS_TEACHING_PROTOCOL;
+    }
   }
 
   // Injecte la vraie banque de prompts de l'agent actif, si elle existe dans le KV.
@@ -3359,6 +3721,16 @@ async function handleChat(request, env) {
     } catch (e) { /* le chat continue même si le cerveau est indisponible */ }
   }
 
+  // 📖 MANUSCRIT PRIVÉ — recherche sémantique séparée du cerveau de Diane.
+  if (agent === 'alex' && session && session.email) {
+    try {
+      const manuscriptCtx = await retrieveAlexManuscript(env, session.email, message || '');
+      if (manuscriptCtx) {
+        systemPrompt += `\n\n📖 EXTRAITS DU MANUSCRIT PRIVÉ DE L'ÉTUDIANT\nCes passages viennent de SON projet, pas des formations de Diane. Utilise-les uniquement pour répondre à la demande actuelle et pour enseigner à partir de son propre texte. Ne prétends pas avoir accès à d'autres passages que ceux fournis ici.\n\n${manuscriptCtx}`;
+      }
+    } catch (_) { /* Alex continue même si le manuscrit est indisponible */ }
+  }
+
   // 🎓 FORMATION VIVANTE (Alex) — catalogue structuré + progression, en plus du système vidéo Vectorize.
   if (agent === FORMATION_AGENT) {
     try {
@@ -3370,10 +3742,7 @@ async function handleChat(request, env) {
 
         // Déterminer un module actif selon l'intention de la personne (ou sa progression en cours).
         const intent = parseFormationIntent(message || '');
-        // Si la personne parle naturellement sans nommer la formation, on reprend la plus récemment active.
-        const formation = resolveActiveFormation(formations, message || '')
-          || pickLatestProgressFormation(formations, progressAll)
-          || (formations.length === 1 ? formations[0] : null);
+        const formation = resolveActiveFormation(formations, message || '');
         if (formation) {
           const prog = progressAll[formation.id] || null;
           let targetModule = null;
@@ -3528,15 +3897,20 @@ async function handleChat(request, env) {
     continueMessages.push({ role: 'assistant', content: piece });
   }
 
-  // ✍️ Retire le marqueur de mémoire avant affichage et sauvegarde les données durables du roman.
-  if (agent === 'alex') {
+  // Alex : retire le marqueur interne et sauvegarde la progression pédagogique / Bible Vivante.
+  if (agent === 'alex' && session && session.email) {
     try {
-      const novelUpdate = extractNovelStatePatch(content);
-      content = novelUpdate.content;
-      if (novelUpdate.patch && session && session.email) {
-        await patchAlexNovelState(env, session.email, novelUpdate.patch);
+      const extractedState = extractAlexStateMarker(content);
+      content = extractedState.content;
+      if (extractedState.patch) {
+        const currentState = alexStudentState || await getAlexStudentState(env, session.email);
+        const mergedState = mergeAlexStatePatch(currentState, extractedState.patch);
+        await saveAlexStudentState(env, session.email, mergedState);
       }
-    } catch (_) { /* la mémoire de roman ne doit jamais bloquer la réponse */ }
+    } catch (_) {
+      // Un problème de mémoire ne doit jamais empêcher la réponse d'Alex.
+      content = String(content || '').replace(/\[ALEX_STATE\][\s\S]*?\[\/ALEX_STATE\]/giu, '').trim();
+    }
   }
 
   content = sanitizeLivingVideoMarkers(content, approvedLivingVideoUrls);
