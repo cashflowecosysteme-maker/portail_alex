@@ -3129,7 +3129,7 @@ async function handleLogout(request, env) {
 
 
 
-// ───────────── ALEX — PÉDAGOGIE CONTINUE + MÉMOIRE + MANUSCRIT ─────────────
+// ───────────── PORTAIL ALEX — ÉQUIPE PÉDAGOGIQUE + MÉMOIRE + MANUSCRIT ─────────────
 // Couche additive : ne remplace ni la Formation Vivante, ni le cerveau Vectorize de Diane.
 // Elle ajoute :
 // 1) une mémoire pédagogique persistante par étudiant ;
@@ -3138,7 +3138,7 @@ async function handleLogout(request, env) {
 
 const ALEX_CONTINUOUS_TEACHING_PROTOCOL = `
 
-🎓 ALEX — ENSEIGNEMENT CONTINU (règle permanente)
+🎓 ÉQUIPE PÉDAGOGIQUE — ENSEIGNEMENT CONTINU (règle permanente)
 
 La Formation Vivante est le parcours principal de l'étudiant, mais elle ne limite jamais ce que tu peux enseigner.
 Ta bibliothèque vectorisée de Diane est ton savoir pédagogique privé : l'étudiant n'a pas besoin de connaître les noms internes des documents ou des leçons. En revanche, il DOIT apprendre les concepts utiles contenus dans ce savoir.
@@ -3179,6 +3179,53 @@ Format exact :
 Ne mémorise jamais dans ce bloc des données personnelles sensibles, médicales, sexuelles, financières, religieuses ou autres informations privées sans rapport direct avec la construction du projet d'écriture. Pour un récit autobiographique, conserve seulement les décisions NARRATIVES nécessaires, pas les détails personnels sensibles.
 Si rien n'a changé, renvoie simplement des tableaux/objets vides.
 Le bloc [ALEX_STATE] doit toujours venir APRÈS la réponse destinée à l'étudiant.`;
+
+
+
+// Équipe qui partage la même progression pédagogique, la même Bible Vivante
+// et le même manuscrit privé. Chaque personnage garde toutefois SON cerveau Vectorize.
+const ALEX_WRITING_TEAM_AGENTS = new Set([
+  'alex', 'aimee', 'alibi', 'constance', 'fripouille', 'melusine', 'abime'
+]);
+const ALEX_SHARED_LEARNING_AGENTS = new Set([
+  'alex', 'aimee', 'alibi', 'constance', 'fripouille', 'melusine', 'abime', 'diane'
+]);
+
+const DIANE_CLONE_KNOWLEDGE_PROTOCOL = `
+
+💜 DIANE — CLONE PÉDAGOGIQUE DE LA CRÉATRICE
+Tu n'es PAS limitée à la motivation. Tu es aussi la présence formatrice numérique de Diane et tu connais les savoirs que Diane a réellement placés dans TON espace vectorisé.
+Quand des extraits de ses propres écrits, formations ou méthodes sont présents dans ton contexte, enseigne-les dans ta voix et aide la personne à les comprendre puis à les appliquer. Ne garde pas ce savoir « derrière toi ».
+Tu peux motiver, expliquer, enseigner et relier une notion au projet en cours. Tu ne renvoies vers Alex ou une spécialiste que lorsqu'un travail narratif très précis gagnerait réellement à être traité par leur spécialité; tu ne te débarrasses jamais d'une question que ton propre savoir te permet de traiter.
+La continuité pédagogique et la Bible Vivante qui te sont fournies appartiennent au même étudiant et au même projet que ceux connus par Alex et les spécialistes. Utilise-les pour ne pas recommencer à zéro.
+`;
+
+const NYXIA_PORTAL_TECH_TEACHING_PROTOCOL = `
+
+✦ NYXIA — ENSEIGNANTE DE LA TECHNIQUE INVISIBLE DU PORTAIL ALEX
+Tu es la personne qui explique COMMENT fonctionne le portail, y compris les mécanismes que l'étudiant ne voit pas.
+Tu connais notamment cette différence fondamentale :
+- 📎 FICHIER JOINT DU CHAT : sert à joindre ponctuellement un fichier ou une image à l'échange courant. Ce bouton ne signifie pas que le document devient le manuscrit persistant du projet.
+- 📖 MANUSCRIT : sert à importer ou mettre à jour le vrai manuscrit de travail du projet. Le système accepte PDF, DOCX, TXT ou MD, prépare une copie de travail en Markdown puis l'indexe dans une mémoire privée afin que l'équipe d'écriture puisse retrouver les passages utiles sans demander de gros copier-coller.
+Le bouton 📖 Manuscrit est partagé par Alex et les six spécialistes d'écriture : un manuscrit importé depuis l'un de ces espaces est le MÊME manuscrit pour toute cette équipe.
+La Bible Vivante et la progression pédagogique sont également communes à l'équipe; les personnalités, les spécialités et les cerveaux vectorisés restent distincts.
+Explique cette mécanique avec des mots simples. N'impose pas les termes « Vectorize », « embeddings », « namespace » ou « Markdown » si la personne veut seulement savoir où cliquer; mais si elle demande ce qui se passe derrière, tu peux l'expliquer clairement.
+Ne prétends jamais qu'un fichier est importé, converti ou mémorisé si le système ne t'a pas fourni son état réel.
+`;
+
+function shouldRetrieveSharedManuscript(agent, message) {
+  if (ALEX_WRITING_TEAM_AGENTS.has(agent)) return true;
+  if (agent !== 'diane') return false;
+  const q = String(message || '').toLowerCase();
+  return /(roman|manuscrit|chapitre|scène|scene|personnage|intrigue|dialogue|texte|écriture|ecriture|auteur|livre|page|projet d['’]écriture)/i.test(q);
+}
+
+function buildNyxiaPortalTechnicalContext(manuscriptMeta) {
+  if (manuscriptMeta && manuscriptMeta.exists) {
+    return `\n\n📖 ÉTAT TECHNIQUE RÉEL DU DOSSIER : un manuscrit persistant est actuellement disponible pour cet étudiant (« ${alexCompactString(manuscriptMeta.name, 160)} », ${manuscriptMeta.chunks || 0} passage(s) indexé(s)). Tu peux confirmer qu'il est prêt, sans inventer d'autre détail.`;
+  }
+  return `\n\n📖 ÉTAT TECHNIQUE RÉEL DU DOSSIER : aucun manuscrit persistant n'est actuellement enregistré pour cet étudiant. Tu peux expliquer comment utiliser le bouton 📖 Manuscrit.`;
+}
 
 const ALEX_STATE_VERSION = 1;
 const ALEX_MANUSCRIPT_MAX_CHARS_PER_CHUNK = 3600;
@@ -3649,20 +3696,30 @@ async function handleChat(request, env) {
   systemPrompt += PROMPT_MARKER_INSTRUCTIONS;
 
 
-  // Alex seulement : continuité pédagogique persistante + Bible Vivante.
+  // Dossier étudiant commun : Alex + six spécialistes + Diane partagent la continuité pédagogique et la Bible.
+  // NyXia reçoit uniquement l'état technique nécessaire pour guider l'étudiant.
   let alexStudentState = null;
   let alexManuscriptMeta = null;
-  if (agent === 'alex' && session && session.email) {
-    try {
-      alexStudentState = await getAlexStudentState(env, session.email);
-      alexManuscriptMeta = await getAlexManuscriptMeta(env, session.email);
-      systemPrompt += ALEX_CONTINUOUS_TEACHING_PROTOCOL;
-      systemPrompt += `\n\n${buildAlexStudentStateInjection(alexStudentState, alexManuscriptMeta)}`;
-    } catch (_) {
-      // Le chat reste fonctionnel si la mémoire persistante est temporairement indisponible.
-      systemPrompt += ALEX_CONTINUOUS_TEACHING_PROTOCOL;
+  if (session && session.email) {
+    if (ALEX_SHARED_LEARNING_AGENTS.has(agent)) {
+      try {
+        alexStudentState = await getAlexStudentState(env, session.email);
+        alexManuscriptMeta = await getAlexManuscriptMeta(env, session.email);
+        systemPrompt += ALEX_CONTINUOUS_TEACHING_PROTOCOL;
+        systemPrompt += `\n\n${buildAlexStudentStateInjection(alexStudentState, alexManuscriptMeta)}`;
+      } catch (_) {
+        // La mémoire n'est jamais bloquante pour le chat.
+        systemPrompt += ALEX_CONTINUOUS_TEACHING_PROTOCOL;
+      }
+    } else if (agent === 'nyxia') {
+      try {
+        alexManuscriptMeta = await getAlexManuscriptMeta(env, session.email);
+      } catch (_) { alexManuscriptMeta = null; }
+      systemPrompt += NYXIA_PORTAL_TECH_TEACHING_PROTOCOL;
+      systemPrompt += buildNyxiaPortalTechnicalContext(alexManuscriptMeta);
     }
   }
+  if (agent === 'diane') systemPrompt += DIANE_CLONE_KNOWLEDGE_PROTOCOL;
 
   // Injecte la vraie banque de prompts de l'agent actif, si elle existe dans le KV.
   const bankRaw = await env.CASHFLOW_KV.get(`prompts:${agent}`);
@@ -3721,14 +3778,15 @@ async function handleChat(request, env) {
     } catch (e) { /* le chat continue même si le cerveau est indisponible */ }
   }
 
-  // 📖 MANUSCRIT PRIVÉ — recherche sémantique séparée du cerveau de Diane.
-  if (agent === 'alex' && session && session.email) {
+  // 📖 MANUSCRIT PRIVÉ PARTAGÉ — même roman pour Alex et les six spécialistes.
+  // Diane peut le consulter seulement lorsqu'une demande concerne réellement le projet d'écriture.
+  if (session && session.email && shouldRetrieveSharedManuscript(agent, message || '')) {
     try {
       const manuscriptCtx = await retrieveAlexManuscript(env, session.email, message || '');
       if (manuscriptCtx) {
-        systemPrompt += `\n\n📖 EXTRAITS DU MANUSCRIT PRIVÉ DE L'ÉTUDIANT\nCes passages viennent de SON projet, pas des formations de Diane. Utilise-les uniquement pour répondre à la demande actuelle et pour enseigner à partir de son propre texte. Ne prétends pas avoir accès à d'autres passages que ceux fournis ici.\n\n${manuscriptCtx}`;
+        systemPrompt += `\n\n📖 EXTRAITS DU MANUSCRIT PRIVÉ DE L'ÉTUDIANT\nCes passages viennent de SON projet, pas des formations de Diane. Ils appartiennent au même manuscrit partagé par l'équipe d'écriture du Portail Alex. Utilise-les uniquement pour la demande actuelle, dans TA spécialité, et pour enseigner à partir du texte réel. Ne prétends jamais avoir accès à d'autres passages que ceux fournis ici.\n\n${manuscriptCtx}`;
       }
-    } catch (_) { /* Alex continue même si le manuscrit est indisponible */ }
+    } catch (_) { /* le personnage continue même si le manuscrit est indisponible */ }
   }
 
   // 🎓 FORMATION VIVANTE (Alex) — catalogue structuré + progression, en plus du système vidéo Vectorize.
@@ -3897,8 +3955,8 @@ async function handleChat(request, env) {
     continueMessages.push({ role: 'assistant', content: piece });
   }
 
-  // Alex : retire le marqueur interne et sauvegarde la progression pédagogique / Bible Vivante.
-  if (agent === 'alex' && session && session.email) {
+  // Équipe pédagogique partagée : retire le marqueur interne et fusionne la progression / Bible commune.
+  if (ALEX_SHARED_LEARNING_AGENTS.has(agent) && session && session.email) {
     try {
       const extractedState = extractAlexStateMarker(content);
       content = extractedState.content;
@@ -3908,7 +3966,7 @@ async function handleChat(request, env) {
         await saveAlexStudentState(env, session.email, mergedState);
       }
     } catch (_) {
-      // Un problème de mémoire ne doit jamais empêcher la réponse d'Alex.
+      // Une panne de mémoire ne doit jamais empêcher la réponse du personnage.
       content = String(content || '').replace(/\[ALEX_STATE\][\s\S]*?\[\/ALEX_STATE\]/giu, '').trim();
     }
   }
