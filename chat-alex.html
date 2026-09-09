@@ -575,7 +575,7 @@
     }
 
     setManuscriptButton('loading', '⏳ Manuscrit')
-    addBotMessage('⏳ Je prépare **' + file.name + '** pour Alex : conversion en Markdown puis création de sa mémoire de manuscrit. Ça peut prendre un petit moment selon la longueur du livre.')
+    addBotMessage('⏳ Je prépare **' + file.name + '** comme manuscrit partagé du Portail Alex : conversion en Markdown puis création de sa mémoire privée. Ça peut prendre un petit moment selon la longueur du livre.')
 
     var fd = new FormData()
     fd.append('token', sessionToken)
@@ -592,7 +592,7 @@
       }
       var m = res.data.manuscript || {}
       setManuscriptButton('ready', '📖 Manuscrit ✓')
-      addBotMessage('✅ **' + (m.name || file.name) + '** est prêt. Alex possède maintenant une copie de travail en Markdown et peut retrouver les passages utiles sans que tu aies à copier-coller ton roman.\n\n' + (m.chunks ? '**' + m.chunks + ' passages** ont été indexés. ' : '') + 'Quand tu mettras ton manuscrit à jour, clique simplement de nouveau sur **📖 Manuscrit** et importe la nouvelle version.')
+      addBotMessage('✅ **' + (m.name || file.name) + '** est prêt. Alex et ses spécialistes possèdent maintenant une copie de travail commune et peuvent retrouver les passages utiles sans que tu aies à copier-coller ton roman.\n\n' + (m.chunks ? '**' + m.chunks + ' passages** ont été indexés. ' : '') + 'Quand tu mettras ton manuscrit à jour, clique simplement de nouveau sur **📖 Manuscrit** et importe la nouvelle version.')
     })
     .catch(function() {
       addBotMessage('❌ Petite interruption pendant l’import du manuscrit. Ton éventuelle version précédente reste intacte.')
