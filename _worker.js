@@ -1369,7 +1369,13 @@ Exemple correct (n'importe quel personnage, y compris Éric) :
 
 Compose une description riche et structurée dans le marqueur plutôt que quelques mots vagues — mentionne le sujet principal, le style (ex: photorealistic, soft lighting, ethereal), l'ambiance et la composition. Une description courte donne souvent un résultat étrange ou incohérent ; une description détaillée donne un bien meilleur résultat.
 
-Le système transforme automatiquement ce marqueur en image réelle affichée dans le chat — tu n'as rien d'autre à faire. Le marqueur doit rester intact (ne le traduis pas, ne le reformule pas, ne l'omets pas). N'utilise ce pouvoir que si la demande du Membre appelle vraiment une image — ne l'improvise pas à chaque message.`;
+Le système transforme automatiquement ce marqueur en image réelle affichée dans le chat — tu n'as rien d'autre à faire. Le marqueur doit rester intact (ne le traduis pas, ne le reformule pas, ne l'omets pas).
+
+⚠️ PRIORITÉ MÉDIA — TRÈS IMPORTANT
+Le marqueur [IMAGE: ...] sert UNIQUEMENT quand la personne demande explicitement de CRÉER / GÉNÉRER / DESSINER une image, une illustration, un visuel ou une photo.
+Une demande comme « voir l'extrait », « regarder la vidéo », « montre-moi l'extrait », « lance JACK SPARROW », « visionner le film / clip » ou toute demande contenant VIDÉO / EXTRAIT / PLAYER n'est JAMAIS une demande de génération d'image.
+Si une ressource vidéo pédagogique approuvée est disponible, la vidéo a priorité absolue : utilise [VIDEO: ...] et n'utilise jamais [IMAGE: ...] pour la remplacer.
+N'utilise ce pouvoir que si la demande appelle vraiment une image — ne l'improvise pas à chaque message.`;
 
 // Pouvoir partagé par TOUS les personnages — la terminologie officielle de l'écosystème,
 // pour ne jamais confondre la cliente avec les gens qu'elle rencontre sur le groupe.
@@ -1489,6 +1495,117 @@ function extractApprovedLivingVideoUrls(brainContext) {
   }
 
   return urls;
+}
+
+// Associe les titres écrits dans les .md de Diane à leurs URL vidéo.
+// Aucun titre n'est codé dans le Worker : tout vient du contexte Vectorize retrouvé.
+function extractLivingVideoResources(sourceText) {
+  const source = String(sourceText || '');
+  const resources = [];
+  const seen = new Set();
+
+  function add(title, rawUrl) {
+    const url = normalizeApprovedVideoUrl(rawUrl);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    resources.push({
+      title: String(title || '').replace(/\s+/g, ' ').trim(),
+      url
+    });
+  }
+
+  // Format simple, y compris lorsqu'un convertisseur aplatit le bloc sur une seule ligne :
+  // 🎬 VIDÉO : JACK SPARROW URL : https://...
+  const marker = /(?:🎬\s*)?VID(?:É|E)O\s*:\s*/giu;
+  let m;
+  while ((m = marker.exec(source)) !== null) {
+    const nearby = source.slice(m.index + m[0].length, m.index + m[0].length + 650);
+    const urlMatch = nearby.match(/\b(?:URL|ADRESSE)\s*:\s*(https:\/\/[^\s<>"'\[\]]+)/iu);
+    if (!urlMatch) continue;
+
+    const beforeUrl = nearby.slice(0, urlMatch.index || 0);
+    const title = beforeUrl
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/(?:pour\s+mieux\s+comprendre[\s\S]*)$/iu, '')
+      .trim();
+
+    add(title, urlMatch[1]);
+  }
+
+  // Ancien format sans titre explicite.
+  const approvedUrlRegex = /ADRESSE\s+VID(?:É|E)O\s+APPROUV(?:É|E)E\s*:\s*(https:\/\/[^\s<>"'\[\]]+)/giu;
+  while ((m = approvedUrlRegex.exec(source)) !== null) add('', m[1]);
+
+  return resources;
+}
+
+function normalizeVideoLookupText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findExplicitRequestedTeachingVideo(sourceText, userMessage) {
+  const message = String(userMessage || '');
+  const messageNorm = normalizeVideoLookupText(message);
+  const resources = extractLivingVideoResources(sourceText);
+
+  if (!resources.length) return null;
+
+  // « extrait » / « vidéo » / « player » sont explicites. « voir/regarder/visionner »
+  // devient explicite si un titre de ressource est réellement nommé dans la demande.
+  const explicitMediaWord = /\b(?:vid(?:é|e)o|extrait|player|clip|film|visionner|regarder|lancer)\b/iu.test(message);
+  let best = null;
+  let bestLen = 0;
+
+  for (const resource of resources) {
+    const titleNorm = normalizeVideoLookupText(resource.title);
+    if (!titleNorm || titleNorm.length < 3) continue;
+    if (messageNorm.includes(titleNorm) && titleNorm.length > bestLen) {
+      best = resource;
+      bestLen = titleNorm.length;
+    }
+  }
+
+  if (best && (explicitMediaWord || /\b(?:voir|montre(?:r|z)?|affiche(?:r|z)?)\b/iu.test(message))) {
+    return best;
+  }
+
+  // Si la demande est clairement vidéo et qu'un seul média approuvé a été retrouvé,
+  // il n'y a aucune ambiguïté.
+  if (explicitMediaWord && resources.length === 1) return resources[0];
+
+  return null;
+}
+
+function enforceExplicitTeachingVideoRequest(content, requestedVideo) {
+  if (!requestedVideo || !requestedVideo.url) return String(content || '');
+
+  let safe = String(content || '');
+
+  // Une demande explicite de lecture vidéo ne peut jamais déclencher le générateur d'images.
+  safe = safe.replace(/\[IMAGE\s*:[^\]\r\n]+\]/giu, '');
+
+  // Retire les petits paragraphes qui annonceraient malgré tout une image générée.
+  safe = safe
+    .split(/\n{2,}/)
+    .filter((p) => !/(?:voici|je\s+génère|je\s+vais\s+générer|image\s+générée|visuel\s+généré)[^\n]{0,120}(?:image|illustration|visuel)/iu.test(String(p || '')))
+    .join('\n\n');
+
+  // Si le modèle a oublié le marqueur, le Worker injecte le player demandé.
+  if (!/\[VIDEO\s*:/iu.test(safe)) {
+    const label = requestedVideo.title ? `🎬 **${requestedVideo.title}**` : '🎬 **Extrait vidéo**';
+    safe = `${safe.trim()}\n\n${label}\n\n[VIDEO: ${requestedVideo.url}]`;
+  }
+
+  return safe
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function sanitizeLivingVideoMarkers(content, approvedUrls) {
@@ -3865,6 +3982,10 @@ async function handleAlexManuscriptDelete(request, env) {
 async function handleChat(request, env) {
   const { message, history, userName, agent, attachment, token } = await request.json();
 
+  // Une demande explicite de lecture vidéo doit court-circuiter toute génération d'image.
+  // Ex.: « Je veux regarder la vidéo Jack Sparrow », « montre-moi l'extrait », « lance le clip ».
+  const explicitVideoPlaybackIntent = /\b(?:vid(?:é|e)o|extrait|player|clip|film|visionner|regarder|lancer)\b/iu.test(String(message || ''));
+
   // Vérification de session — protège la clé OpenRouter d'un usage non autorisé
   if (!token) return json({ error: 'Session manquante.' }, 401);
   const sessionRaw = await env.CASHFLOW_KV.get(`session:${token}`);
@@ -3889,7 +4010,9 @@ async function handleChat(request, env) {
 
   systemPrompt += `\n\nPHILOSOPHIE COMMUNE DE L'UNIVERS NYXIA (rappel) : entraide, relation humaine, pas MLM, pas paliers et pas de vente dure. Chacun gagne à aider les autres à réussir. Incarne ton personnage avec cohérence. Si la personne te demande ce que tu es, respecte la réponse transparente prévue dans ta personnalité.`;
   systemPrompt += `\n\nCADRE DE SÉCURITÉ COMMUN : tu demeures une assistante de création, jamais une partenaire romantique de la personne. Aucun jeu de rôle amoureux immersif avec l'utilisateur, aucun contenu sexuel explicite, aucune sexualisation de mineur, aucune description graphique de violence et aucune description ou mise en scène de suicide ou d'automutilation. Pour un sujet sensible, reste sobre, non graphique et recentre sur la structure, l'émotion générale ou une solution narrative sûre.`;
-  systemPrompt += IMAGE_GENERATION_INSTRUCTIONS;
+  // Si la personne demande explicitement une vidéo/extrait, on n'injecte même pas les
+  // consignes de génération d'image dans le modèle. Cela évite le conflit « voir = image ».
+  if (!explicitVideoPlaybackIntent) systemPrompt += IMAGE_GENERATION_INSTRUCTIONS;
   if (agent === 'eric') systemPrompt += TERMINOLOGIE_OFFICIELLE;
   systemPrompt += PEDAGOGIE_FORMATEUR;
   // Chaque personnage conserve son rôle et sa spécialité dans le portail Alex.
@@ -3943,6 +4066,7 @@ async function handleChat(request, env) {
   let approvedLivingAudioUrls = [];
   let approvedLivingImageUrls = [];
   let videoProtocolAdded = false;
+  let explicitRequestedTeachingVideo = null;
   // Suivi de la Formation Vivante (Alex) pour sauvegarder la progression après génération.
   let formationSave = null;
   if (agent) { // universel : tout personnage cherche dans son namespace ; s'il est vide, rien n'est ajouté
@@ -3968,6 +4092,8 @@ async function handleChat(request, env) {
         approvedLivingVideoUrls = extractApprovedLivingVideoUrls(brainCtx);
         approvedLivingAudioUrls = extractApprovedMediaUrls(brainCtx, 'AUDIO');
         approvedLivingImageUrls = extractApprovedMediaUrls(brainCtx, 'IMAGE');
+        explicitRequestedTeachingVideo = explicitRequestedTeachingVideo
+          || findExplicitRequestedTeachingVideo(brainCtx, message || '');
 
         // 🎬 Si le meilleur enseignement retrouvé n'est pas lui-même une leçon vidéo,
         // on conserve cet excellent contexte ET on cherche discrètement une ressource vidéo
@@ -3979,6 +4105,8 @@ async function handleChat(request, env) {
             if (sidecarVideos.length) {
               systemPrompt += `\n\n🎬 RESSOURCES VIDÉO PÉDAGOGIQUES RETROUVÉES EN COMPLÉMENT\nCes ressources ont été retrouvées parce qu'elles sont sémantiquement liées à la difficulté actuelle. Elles sont facultatives : conserve d'abord la qualité de ton enseignement principal et utilise UNE vidéo seulement si elle constitue un exemple vraiment utile maintenant.\n\n${videoSidecarCtx}`;
               approvedLivingVideoUrls = Array.from(new Set(approvedLivingVideoUrls.concat(sidecarVideos)));
+              explicitRequestedTeachingVideo = explicitRequestedTeachingVideo
+                || findExplicitRequestedTeachingVideo(videoSidecarCtx, message || '');
             }
           }
         }
@@ -4000,6 +4128,8 @@ async function handleChat(request, env) {
           // Si la leçon complémentaire contient elle-même un média approuvé utile,
           // il devient disponible pour CETTE réponse sans déclencher de recherche récursive.
           const extraVideos = extractApprovedLivingVideoUrls(complementaryCtx);
+          explicitRequestedTeachingVideo = explicitRequestedTeachingVideo
+            || findExplicitRequestedTeachingVideo(complementaryCtx, message || '');
           const extraAudios = extractApprovedMediaUrls(complementaryCtx, 'AUDIO');
           const extraImages = extractApprovedMediaUrls(complementaryCtx, 'IMAGE');
           const hadAudioBefore = approvedLivingAudioUrls.length > 0;
@@ -4016,6 +4146,24 @@ async function handleChat(request, env) {
         }
       }
     } catch (e) { /* le chat continue même si le cerveau est indisponible */ }
+  }
+
+  if (explicitRequestedTeachingVideo && explicitRequestedTeachingVideo.url) {
+    approvedLivingVideoUrls = Array.from(new Set(
+      approvedLivingVideoUrls.concat([explicitRequestedTeachingVideo.url])
+    ));
+    if (!videoProtocolAdded) {
+      systemPrompt += LIVING_VIDEO_TRAINING_PROTOCOL;
+      videoProtocolAdded = true;
+    }
+    systemPrompt += `
+
+🎬 DEMANDE VIDÉO EXPLICITE DE L'ÉTUDIANT — PRIORITÉ ABSOLUE
+La personne vient de demander à VOIR / REGARDER un extrait vidéo précis qui a été retrouvé dans les ressources pédagogiques approuvées.
+Titre retrouvé : ${explicitRequestedTeachingVideo.title || 'extrait vidéo'}
+Tu dois utiliser le player intégré [VIDEO: ...] pour CETTE ressource.
+Ne génère JAMAIS une image, une illustration ou un visuel à la place. N'utilise pas [IMAGE: ...].
+Tu peux donner une courte mission d'observation adaptée, puis afficher la vidéo.`;
   }
 
   // 📖 MANUSCRIT PRIVÉ PARTAGÉ — même roman pour Diane, Alex et les six spécialistes.
@@ -4209,6 +4357,17 @@ async function handleChat(request, env) {
       // Une panne de mémoire ne doit jamais empêcher la réponse du personnage.
       content = String(content || '').replace(/\[ALEX_STATE\][\s\S]*?\[\/ALEX_STATE\]/giu, '').trim();
     }
+  }
+
+  content = enforceExplicitTeachingVideoRequest(content, explicitRequestedTeachingVideo);
+
+  // Filet de sécurité déterministe : une demande de lecture vidéo ne doit JAMAIS
+  // laisser passer un marqueur [IMAGE: ...], même si le modèle en a généré un malgré tout.
+  if (explicitVideoPlaybackIntent) {
+    content = String(content || '')
+      .replace(/\[IMAGE\s*:[^\]\r\n]+\]/giu, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   content = sanitizeLivingVideoMarkers(content, approvedLivingVideoUrls);
