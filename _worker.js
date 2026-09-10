@@ -1281,6 +1281,26 @@ La même vidéo peut donc produire des missions différentes selon l'étudiant e
 
 Si la vidéo n'est pas réellement utile maintenant, continue l'accompagnement sans l'afficher. Si aucune adresse vidéo approuvée n'est présente, n'affiche aucune vidéo.`;
 
+// Passerelles pédagogiques — les titres restent dans Vectorize, jamais dans le Worker.
+// Le Worker ne connaît aucune liste de leçons : il détecte seulement les renvois écrits par Diane
+// dans le contexte courant et effectue UNE recherche secondaire ciblée dans le même namespace.
+const COMPLEMENTARY_LESSON_PROTOCOL = `
+
+🔗 PASSERELLES ENTRE LEÇONS — PROTOCOLE UNIVERSEL
+
+Le contexte supplémentaire ci-dessous a été retrouvé uniquement parce qu'une leçon de Diane mentionnait explicitement une ou plusieurs « leçons complémentaires » / « leçons à voir » / « voir aussi les leçons ».
+
+RÈGLES :
+- Ces passerelles sont des pistes pédagogiques, pas des obligations.
+- Utilise AU MAXIMUM UNE passerelle dans ta réponse et seulement si elle aide directement ce que l'étudiant travaille maintenant.
+- Enseigne la notion naturellement. Ne révèle pas le nom interne du fichier, son identifiant, son namespace ni la mécanique de recherche.
+- Tu peux nommer une notion ou un titre pédagogique si cela aide réellement l'étudiant, mais ne présente jamais une référence comme consultée si son contenu n'apparaît pas dans le contexte fourni.
+- Ne transforme pas la réponse en catalogue de leçons.
+- Ne lance pas une chaîne infinie de renvois : une seule recherche complémentaire est fournie pour cette réponse.
+- Si aucune passerelle n'est utile maintenant, ignore simplement ce contexte et poursuis l'accompagnement normal.
+
+BUT : faire vivre les connexions que Diane a déjà créées entre ses enseignements, puis ramener l'étudiant à une application concrète dans son propre projet.`;
+
 // Protocole audio — jumeau du protocole vidéo. Un MP3 n'est jamais choisi au hasard :
 // il provient d'un bloc « ADRESSE AUDIO APPROUVÉE » présent dans le contexte (Vectorize ou module de formation).
 const LIVING_AUDIO_TRAINING_PROTOCOL = `
@@ -3871,6 +3891,30 @@ async function handleChat(request, env) {
         if (approvedLivingAudioUrls.length) {
           systemPrompt += LIVING_AUDIO_TRAINING_PROTOCOL;
         }
+        // 🔗 PASSERELLES PÉDAGOGIQUES — recherche secondaire générique, un seul niveau.
+        // Aucun titre n'est codé ici : on utilise uniquement les renvois présents dans le passage retrouvé.
+        const complementaryCtx = await retrieveComplementaryLessonContext(env, agent, message || '', brainCtx, 3);
+        if (complementaryCtx) {
+          systemPrompt += `\n\n🔗 SAVOIRS COMPLÉMENTAIRES RETROUVÉS PAR LES RENVOIS DE DIANE\n\n${complementaryCtx}`;
+          systemPrompt += COMPLEMENTARY_LESSON_PROTOCOL;
+
+          // Si la leçon complémentaire contient elle-même un média approuvé utile,
+          // il devient disponible pour CETTE réponse sans déclencher de recherche récursive.
+          const extraVideos = extractApprovedLivingVideoUrls(complementaryCtx);
+          const extraAudios = extractApprovedMediaUrls(complementaryCtx, 'AUDIO');
+          const extraImages = extractApprovedMediaUrls(complementaryCtx, 'IMAGE');
+          const hadAudioBefore = approvedLivingAudioUrls.length > 0;
+          approvedLivingVideoUrls = Array.from(new Set(approvedLivingVideoUrls.concat(extraVideos)));
+          approvedLivingAudioUrls = Array.from(new Set(approvedLivingAudioUrls.concat(extraAudios)));
+          approvedLivingImageUrls = Array.from(new Set(approvedLivingImageUrls.concat(extraImages)));
+          if (extraVideos.length && !videoProtocolAdded) {
+            systemPrompt += LIVING_VIDEO_TRAINING_PROTOCOL;
+            videoProtocolAdded = true;
+          }
+          if (extraAudios.length && !hadAudioBefore) {
+            systemPrompt += LIVING_AUDIO_TRAINING_PROTOCOL;
+          }
+        }
       }
     } catch (e) { /* le chat continue même si le cerveau est indisponible */ }
   }
@@ -5042,6 +5086,156 @@ async function handleAdminDeleteFormation(request, env) {
     return json({ error: 'Suppression impossible : ' + e.message }, 500);
   }
   return json({ success: true });
+}
+
+
+function normalizeKnowledgeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractBrainSources(brainCtx) {
+  const out = [];
+  const re = /—\s*\(([^)]+)\)/g;
+  let m;
+  while ((m = re.exec(String(brainCtx || '')))) {
+    const s = String(m[1] || '').trim();
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+
+function extractComplementaryLessonReferences(brainCtx) {
+  const text = String(brainCtx || '');
+  if (!text) return [];
+
+  // On ne cherche PAS les titres dans le Worker. On repère seulement les formulations génériques
+  // que Diane utilise déjà dans ses documents, puis on conserve le texte qui les suit comme requête.
+  const marker = /(voir\s+(?:les?\s+)?le[cç]ons?\s+compl[eé]mentaires?|le[cç]ons?\s+compl[eé]mentaires?|le[cç]ons?\s+[àa]\s+voir|voir\s+aussi\s+(?:les?\s+)?le[cç]ons?)/i;
+  const lines = text.split(/\r?\n/);
+  const refs = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const hit = line.match(marker);
+    if (!hit) continue;
+
+    const idx = (hit.index || 0) + hit[0].length;
+    let tail = line.slice(idx).replace(/^\s*[:\-–—]\s*/, '').trim();
+
+    // Si le titre ou la liste est sur la même ligne, on la garde telle quelle :
+    // Vectorize se charge de retrouver les documents correspondants.
+    if (tail.length >= 3) {
+      refs.push(tail.slice(0, 1200));
+      continue;
+    }
+
+    // Sinon, récupère quelques lignes suivantes (liste Markdown ou titres sur lignes séparées).
+    const next = [];
+    for (let j = i + 1; j < lines.length && next.length < 8; j++) {
+      const raw = lines[j].trim();
+      if (!raw) {
+        if (next.length) break;
+        continue;
+      }
+      if (/^#{1,6}\s+/.test(raw) && next.length) break;
+      if (/—\s*\([^)]+\)/.test(raw)) break; // prochain passage Vectorize assemblé
+      next.push(raw.replace(/^[-*•]\s*/, ''));
+      if (next.join(' ').length > 1200) break;
+    }
+    if (next.length) refs.push(next.join(' ').slice(0, 1200));
+  }
+
+  // Déduplique sans imposer de taxonomie ni de catalogue.
+  const seen = new Set();
+  return refs.filter(r => {
+    const key = normalizeKnowledgeText(r);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 3);
+}
+
+function knowledgeTokens(value) {
+  const stop = new Set([
+    'les','des','une','un','du','de','la','le','et','ou','a','au','aux','en','dans','pour','sur','votre','vos','notre','nos',
+    'voir','lecon','lecons','complementaire','complementaires','aussi','histoire','votre','question'
+  ]);
+  return normalizeKnowledgeText(value)
+    .split(' ')
+    .filter(t => t.length >= 3 && !stop.has(t));
+}
+
+function isGenericBrainSource(source) {
+  const s = normalizeKnowledgeText(source);
+  return !s || s === 'livre' || s === 'inconnu' || s === 'document';
+}
+
+async function retrieveComplementaryLessonContext(env, agent, userQuery, brainCtx, maxResults = 3) {
+  const refs = extractComplementaryLessonReferences(brainCtx);
+  if (!refs.length || !agent) return '';
+
+  try {
+    const referenceText = refs.join('\n').slice(0, 2600);
+    const semanticQuery = `${String(userQuery || '').slice(0, 1800)}\n\nRéférences pédagogiques reliées :\n${referenceText}`;
+    const embeddings = await env.AI.run('@cf/baai/bge-m3', { text: [semanticQuery] });
+    const results = await env.VECTORIZE_INDEX.query(embeddings.data[0], {
+      topK: 12,
+      returnMetadata: 'all',
+      namespace: agent
+    });
+    if (!results.matches || !results.matches.length) return '';
+
+    const currentSources = new Set(
+      extractBrainSources(brainCtx)
+        .filter(s => !isGenericBrainSource(s))
+        .map(normalizeKnowledgeText)
+    );
+    const refTokenSet = new Set(knowledgeTokens(referenceText));
+    const candidates = [];
+
+    for (const m of results.matches) {
+      const score = Number(m.score || 0);
+      if (score < 0.30) continue;
+
+      const source = String((m.metadata && m.metadata.source) || 'livre').trim();
+      const normalizedSource = normalizeKnowledgeText(source);
+      if (normalizedSource && currentSources.has(normalizedSource)) continue;
+
+      let body = (m.metadata && m.metadata.texte_original) || '';
+      if (m.metadata && m.metadata.has_full === '1' && m.id) {
+        try {
+          const full = await env.CASHFLOW_KV.get('brain_text:' + agent + ':' + m.id);
+          if (full) body = full;
+        } catch (_) {}
+      }
+      if (!body) continue;
+
+      // Favorise les passages dont le titre/source ou le début du texte partage des mots
+      // avec les références de Diane, sans exiger une nomenclature particulière.
+      const candidateTokens = new Set(knowledgeTokens(source + ' ' + String(body).slice(0, 1000)));
+      let overlap = 0;
+      for (const t of refTokenSet) if (candidateTokens.has(t)) overlap++;
+
+      // Un fort score sémantique peut suffire, sinon on exige au moins un lien lexical.
+      if (overlap === 0 && score < 0.52) continue;
+      candidates.push({ m, source, body, rank: score + Math.min(overlap, 5) * 0.045 });
+    }
+
+    candidates.sort((a, b) => b.rank - a.rank);
+    const picked = candidates.slice(0, Math.max(1, Math.min(maxResults, 3)));
+    if (!picked.length) return '';
+
+    return picked.map(c => `— (${c.source}) ${c.body}`).join('\n\n');
+  } catch (e) {
+    console.error('Erreur passerelles pédagogiques Vectorize:', e);
+    return '';
+  }
 }
 
 async function retrieveBrain(env, agent, query, topK = 5) {
