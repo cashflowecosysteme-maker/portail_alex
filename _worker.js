@@ -1261,6 +1261,9 @@ RÈGLES ABSOLUES :
 [VIDEO: adresse_https_approuvée]
 
 - Le marqueur doit rester intact. Ne le mets jamais dans un bloc de code et ne l'explique jamais à l'étudiant.
+- IMPORTANT : le portail SAIT afficher la vidéo directement dans la conversation à partir de ce marqueur. Ne dis JAMAIS que tu ne peux pas afficher la vidéo, qu'il faut cliquer sur un lien, ouvrir Google Drive, télécharger le fichier, aller sur YouTube ou quitter le portail.
+- N'affiche JAMAIS l'URL Google Drive à l'étudiant et ne lui demande jamais si le lien fonctionne. Le rendu du portail transforme le marqueur en player intégré automatiquement.
+- Si tu utilises la vidéo, parle simplement du « player ci-dessous », de « l'extrait ci-dessous » ou de « la vidéo ci-dessous ».
 
 🎯 MISSION ADAPTATIVE — IMPORTANT
 La mission n'a PAS besoin d'être écrite dans le document de Diane. Tu la construis toi-même à partir de :
@@ -1534,6 +1537,38 @@ function sanitizeLivingVideoMarkers(content, approvedUrls) {
   }
 
   return safe
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Quand un player a réellement été injecté, retire les explications contradictoires
+// que le modèle peut parfois produire par réflexe ("je ne peux pas afficher la vidéo",
+// "clique sur le lien", "ouvre Google Drive", etc.). Le player reste la seule UX visible.
+function stripVideoPlayerContradictions(content) {
+  let text = String(content || '');
+  if (!/\[VIDEO\s*:/iu.test(text)) return text;
+
+  const badParagraphPatterns = [
+    /je\s+ne\s+peux\s+pas[^\n]{0,220}(?:afficher|lire|intégrer)[^\n]{0,120}vid(?:é|e)o/iu,
+    /(?:le\s+)?lien[^\n]{0,180}(?:google\s*drive|fichier\s+stocké|navigateur|fonctionne)/iu,
+    /cliqu(?:e|ez|er)[^\n]{0,180}(?:lien|google\s*drive)/iu,
+    /(?:ouvrir|s['’]ouvrir)[^\n]{0,180}(?:navigateur|google\s*drive|lien)/iu,
+    /télécharg(?:e|er|ez)[^\n]{0,180}(?:fichier|vid(?:é|e)o)/iu,
+    /paramètres?\s+de\s+partage[^\n]{0,180}/iu,
+    /recherch(?:e|ez|er)[^\n]{0,180}(?:youtube|plateforme\s+de\s+vid(?:é|e)o)/iu,
+    /(?:youtube|plateforme\s+de\s+vid(?:é|e)o)[^\n]{0,180}/iu,
+    /est-ce\s+que\s+le\s+lien\s+fonctionne/iu
+  ];
+
+  // Travaille par paragraphes afin de ne pas abîmer l'enseignement utile autour du player.
+  const paragraphs = text.split(/\n{2,}/);
+  const kept = paragraphs.filter((p) => {
+    const compact = String(p || '').trim();
+    if (!compact) return false;
+    return !badParagraphPatterns.some((re) => re.test(compact));
+  });
+
+  return kept.join('\n\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -4177,6 +4212,7 @@ async function handleChat(request, env) {
   }
 
   content = sanitizeLivingVideoMarkers(content, approvedLivingVideoUrls);
+  content = stripVideoPlayerContradictions(content);
   content = sanitizeApprovedMediaMarkers(content, 'AUDIO', approvedLivingAudioUrls, 3);
   content = sanitizeApprovedMediaMarkers(content, 'PHOTO', approvedLivingImageUrls, 3);
   if (!content) content = 'Petite interruption... réessaies dans un instant 💜';
