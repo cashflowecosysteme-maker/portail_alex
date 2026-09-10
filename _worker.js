@@ -3884,6 +3884,21 @@ async function handleChat(request, env) {
         approvedLivingVideoUrls = extractApprovedLivingVideoUrls(brainCtx);
         approvedLivingAudioUrls = extractApprovedMediaUrls(brainCtx, 'AUDIO');
         approvedLivingImageUrls = extractApprovedMediaUrls(brainCtx, 'IMAGE');
+
+        // 🎬 Si le meilleur enseignement retrouvé n'est pas lui-même une leçon vidéo,
+        // on conserve cet excellent contexte ET on cherche discrètement une ressource vidéo
+        // reliée au même problème. La vidéo devient un support optionnel, jamais un remplacement.
+        if (!approvedLivingVideoUrls.length && shouldSearchTeachingVideo(agent, message || '')) {
+          const videoSidecarCtx = await retrieveRelevantTeachingVideoContext(env, agent, message || '', 20, 2);
+          if (videoSidecarCtx) {
+            const sidecarVideos = extractApprovedLivingVideoUrls(videoSidecarCtx);
+            if (sidecarVideos.length) {
+              systemPrompt += `\n\n🎬 RESSOURCES VIDÉO PÉDAGOGIQUES RETROUVÉES EN COMPLÉMENT\nCes ressources ont été retrouvées parce qu'elles sont sémantiquement liées à la difficulté actuelle. Elles sont facultatives : conserve d'abord la qualité de ton enseignement principal et utilise UNE vidéo seulement si elle constitue un exemple vraiment utile maintenant.\n\n${videoSidecarCtx}`;
+              approvedLivingVideoUrls = Array.from(new Set(approvedLivingVideoUrls.concat(sidecarVideos)));
+            }
+          }
+        }
+
         if (approvedLivingVideoUrls.length) {
           systemPrompt += LIVING_VIDEO_TRAINING_PROTOCOL;
           videoProtocolAdded = true;
@@ -5234,6 +5249,69 @@ async function retrieveComplementaryLessonContext(env, agent, userQuery, brainCt
     return picked.map(c => `— (${c.source}) ${c.body}`).join('\n\n');
   } catch (e) {
     console.error('Erreur passerelles pédagogiques Vectorize:', e);
+    return '';
+  }
+}
+
+// 🎬 RECHERCHE VIDÉO SECONDAIRE — sidecar pédagogique léger.
+// Le cerveau principal reste prioritaire. Si ses meilleurs passages ne contiennent aucune vidéo,
+// on fait une deuxième recherche Vectorize ciblée sur les exemples/scènes vidéo, sans remplacer
+// les bons enseignements déjà retrouvés. Les titres et liens restent entièrement dans Vectorize.
+const VIDEO_TEACHING_AGENTS = new Set([
+  'diane', 'alex', 'aimee', 'abime', 'alibi', 'constance', 'fripouille', 'melusine'
+]);
+
+function shouldSearchTeachingVideo(agent, message) {
+  if (!VIDEO_TEACHING_AGENTS.has(agent)) return false;
+  const q = String(message || '').trim();
+  if (q.length < 12) return false;
+  // Évite de fouiller des vidéos pour les demandes purement techniques du portail.
+  if (/(connexion|mot de passe|paiement|facture|bug|erreur technique|téléchargement|download|compte|abonnement)/iu.test(q)) return false;
+  return true;
+}
+
+async function retrieveRelevantTeachingVideoContext(env, agent, query, topK = 20, maxResults = 2) {
+  if (!shouldSearchTeachingVideo(agent, query)) return '';
+  try {
+    const enrichedQuery = `${String(query || '').trim()}\n\nExemple pédagogique visuel : extrait vidéo, analyse de scène, film, présentation de personnage, intrigue ou démonstration concrète reliée à ce problème d'écriture.`;
+    const embeddings = await env.AI.run('@cf/baai/bge-m3', { text: [enrichedQuery] });
+    const results = await env.VECTORIZE_INDEX.query(embeddings.data[0], {
+      topK,
+      returnMetadata: 'all',
+      namespace: agent
+    });
+    const candidates = [];
+    for (const m of (results.matches || [])) {
+      if ((m.score || 0) < 0.24) continue;
+      let body = (m.metadata && m.metadata.texte_original) || '';
+      let urls = extractApprovedLivingVideoUrls(body);
+      // Si l'aperçu Vectorize ne contient pas encore l'URL mais que le texte complet est en KV,
+      // on recharge uniquement ce candidat pour vérifier s'il s'agit bien d'une ressource vidéo.
+      if (!urls.length && m.metadata && m.metadata.has_full === '1' && m.id) {
+        try {
+          const full = await env.CASHFLOW_KV.get('brain_text:' + agent + ':' + m.id);
+          if (full) {
+            const fullUrls = extractApprovedLivingVideoUrls(full);
+            if (fullUrls.length) {
+              body = full;
+              urls = fullUrls;
+            }
+          }
+        } catch (_) {}
+      }
+      if (!urls.length) continue;
+      candidates.push({
+        score: Number(m.score || 0),
+        source: (m.metadata && m.metadata.source) || 'ressource pédagogique',
+        body
+      });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    const picked = candidates.slice(0, Math.max(1, Math.min(maxResults, 2)));
+    if (!picked.length) return '';
+    return picked.map((c, i) => `— Ressource vidéo candidate ${i + 1}\n${c.body}`).join('\n\n');
+  } catch (e) {
+    console.error('Erreur recherche vidéo pédagogique secondaire:', e);
     return '';
   }
 }
