@@ -1583,6 +1583,87 @@ function findExplicitRequestedTeachingVideo(sourceText, userMessage) {
   return null;
 }
 
+
+function extractRequestedTeachingVideoTitleHint(userMessage) {
+  let raw = String(userMessage || '').trim();
+  if (!raw) return '';
+
+  const patterns = [
+    /\b(?:vid(?:é|e)o|extrait|player|clip|film)\b\s*(?:de|du|des|d['’])?\s*[:\-–—]?\s*[«"'“]?(.+?)[»"'”]?\s*[?.!]*$/iu,
+    /\b(?:regarder|visionner|voir|lancer|afficher|montre(?:r|z)?(?:-moi)?)\b\s+(?:la|le|l['’])?\s*(?:vid(?:é|e)o|extrait|player|clip|film)?\s*(?:de|du|des|d['’])?\s*[«"'“]?(.+?)[»"'”]?\s*[?.!]*$/iu
+  ];
+
+  for (const re of patterns) {
+    const m = raw.match(re);
+    if (!m || !m[1]) continue;
+    let hint = String(m[1])
+      .replace(/\b(?:s['’]il\s+te\s+pla[iî]t|s['’]il\s+vous\s+pla[iî]t|svp)\b/giu, ' ')
+      .replace(/^[\s:;,.!?'"«»“”\-–—]+|[\s:;,.!?'"«»“”\-–—]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (hint.length >= 2) return hint;
+  }
+  return '';
+}
+
+async function retrieveExplicitTeachingVideoByTitle(env, agent, userMessage, topK = 40) {
+  if (!VIDEO_TEACHING_AGENTS.has(agent)) return null;
+  const hint = extractRequestedTeachingVideoTitleHint(userMessage);
+  if (!hint) return null;
+
+  try {
+    // On répète volontairement le titre : pour une demande de lecture directe, le titre exact
+    // doit peser davantage que la formulation conversationnelle autour.
+    const queryText = `${hint}\n${hint}\nVIDÉO : ${hint}\nURL`; 
+    const embeddings = await env.AI.run('@cf/baai/bge-m3', { text: [queryText] });
+    const results = await env.VECTORIZE_INDEX.query(embeddings.data[0], {
+      topK,
+      returnMetadata: 'all',
+      namespace: agent
+    });
+
+    const hintNorm = normalizeVideoLookupText(hint);
+    const msgNorm = normalizeVideoLookupText(userMessage);
+    const found = [];
+
+    for (const m of (results.matches || [])) {
+      let body = (m.metadata && m.metadata.texte_original) || '';
+      if (m.metadata && m.metadata.has_full === '1' && m.id) {
+        try {
+          const full = await env.CASHFLOW_KV.get('brain_text:' + agent + ':' + m.id);
+          if (full) body = full;
+        } catch (_) {}
+      }
+
+      const resources = extractLivingVideoResources(body);
+      for (const resource of resources) {
+        const titleNorm = normalizeVideoLookupText(resource.title);
+        if (!titleNorm) continue;
+
+        let titleScore = 0;
+        if (titleNorm === hintNorm) titleScore = 4;
+        else if (titleNorm.includes(hintNorm) || hintNorm.includes(titleNorm)) titleScore = 3;
+        else if (msgNorm.includes(titleNorm)) titleScore = 2;
+        if (!titleScore) continue;
+
+        found.push({
+          titleScore,
+          vectorScore: Number(m.score || 0),
+          resource,
+          body
+        });
+      }
+    }
+
+    found.sort((a, b) => (b.titleScore - a.titleScore) || (b.vectorScore - a.vectorScore));
+    if (!found.length) return null;
+    return { resource: found[0].resource, context: found[0].body };
+  } catch (e) {
+    console.error('Erreur recherche vidéo explicite par titre:', e);
+    return null;
+  }
+}
+
 function enforceExplicitTeachingVideoRequest(content, requestedVideo) {
   if (!requestedVideo || !requestedVideo.url) return String(content || '');
 
@@ -1674,7 +1755,10 @@ function stripVideoPlayerContradictions(content) {
     /paramètres?\s+de\s+partage[^\n]{0,180}/iu,
     /recherch(?:e|ez|er)[^\n]{0,180}(?:youtube|plateforme\s+de\s+vid(?:é|e)o)/iu,
     /(?:youtube|plateforme\s+de\s+vid(?:é|e)o)[^\n]{0,180}/iu,
-    /est-ce\s+que\s+le\s+lien\s+fonctionne/iu
+    /est-ce\s+que\s+le\s+lien\s+fonctionne/iu,
+    /je\s+ne\s+dispose\s+pas[^\n]{0,220}(?:vid(?:é|e)o|extrait)/iu,
+    /pour\s+visionner[^\n]{0,180}(?:lien|ci-dessous)/iu,
+    /utilis(?:e|ez|er)[^\n]{0,180}(?:lien)/iu
   ];
 
   // Travaille par paragraphes afin de ne pas abîmer l'enseignement utile autour du player.
@@ -1686,6 +1770,40 @@ function stripVideoPlayerContradictions(content) {
   });
 
   return kept.join('\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+
+function hideRawApprovedVideoLinksWhenPlayerExists(content, approvedUrls) {
+  let text = String(content || '');
+  if (!/\[VIDEO\s*:/iu.test(text)) return text;
+
+  const allowed = Array.from(new Set((approvedUrls || []).map(normalizeApprovedVideoUrl).filter(Boolean)));
+  if (!allowed.length) return text;
+
+  // Protège temporairement les marqueurs player afin de pouvoir supprimer toutes les autres
+  // apparitions de la même URL (liens Markdown, URL:, lien brut) sans casser le player.
+  const markers = [];
+  text = text.replace(/\[VIDEO\s*:\s*([^\]\r\n]+)\]/giu, (m) => {
+    const token = `@@NYXIA_VIDEO_PLAYER_${markers.length}@@`;
+    markers.push(m);
+    return token;
+  });
+
+  for (const approved of allowed) {
+    const escaped = approved.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    text = text
+      .replace(new RegExp(`\[[^\]]*\]\(${escaped}\)`, 'giu'), '')
+      .replace(new RegExp(`(?:URL|LIEN|ADRESSE)\s*:\s*${escaped}`, 'giu'), '')
+      .replace(new RegExp(escaped, 'giu'), '');
+  }
+
+  markers.forEach((marker, i) => {
+    text = text.replace(`@@NYXIA_VIDEO_PLAYER_${i}@@`, marker);
+  });
+
+  return text
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -4010,9 +4128,10 @@ async function handleChat(request, env) {
 
   systemPrompt += `\n\nPHILOSOPHIE COMMUNE DE L'UNIVERS NYXIA (rappel) : entraide, relation humaine, pas MLM, pas paliers et pas de vente dure. Chacun gagne à aider les autres à réussir. Incarne ton personnage avec cohérence. Si la personne te demande ce que tu es, respecte la réponse transparente prévue dans ta personnalité.`;
   systemPrompt += `\n\nCADRE DE SÉCURITÉ COMMUN : tu demeures une assistante de création, jamais une partenaire romantique de la personne. Aucun jeu de rôle amoureux immersif avec l'utilisateur, aucun contenu sexuel explicite, aucune sexualisation de mineur, aucune description graphique de violence et aucune description ou mise en scène de suicide ou d'automutilation. Pour un sujet sensible, reste sobre, non graphique et recentre sur la structure, l'émotion générale ou une solution narrative sûre.`;
-  // Si la personne demande explicitement une vidéo/extrait, on n'injecte même pas les
-  // consignes de génération d'image dans le modèle. Cela évite le conflit « voir = image ».
-  if (!explicitVideoPlaybackIntent) systemPrompt += IMAGE_GENERATION_INSTRUCTIONS;
+  // On conserve les consignes média complètes : elles enseignent aussi la priorité VIDÉO.
+  // Sur une demande vidéo explicite, le filtre déterministe plus bas supprime tout [IMAGE: ...]
+  // parasite. Cela garde le comportement du player stable sans laisser le générateur d'images gagner.
+  systemPrompt += IMAGE_GENERATION_INSTRUCTIONS;
   if (agent === 'eric') systemPrompt += TERMINOLOGIE_OFFICIELLE;
   systemPrompt += PEDAGOGIE_FORMATEUR;
   // Chaque personnage conserve son rôle et sa spécialité dans le portail Alex.
@@ -4146,6 +4265,28 @@ async function handleChat(request, env) {
         }
       }
     } catch (e) { /* le chat continue même si le cerveau est indisponible */ }
+  }
+
+  // 🎯 DEMANDE DE LECTURE VIDÉO PAR TITRE — recherche déterministe dédiée.
+  // Important : l'historique du chat peut contenir une ancienne URL, mais elle n'est jamais
+  // considérée comme approuvée pour ce tour. On retrouve d'abord la ressource dans Vectorize.
+  if (explicitVideoPlaybackIntent && VIDEO_TEACHING_AGENTS.has(agent) && !explicitRequestedTeachingVideo) {
+    try {
+      const exactVideoHit = await retrieveExplicitTeachingVideoByTitle(env, agent, message || '');
+      if (exactVideoHit && exactVideoHit.resource && exactVideoHit.resource.url) {
+        explicitRequestedTeachingVideo = exactVideoHit.resource;
+        approvedLivingVideoUrls = Array.from(new Set(
+          approvedLivingVideoUrls.concat([exactVideoHit.resource.url])
+        ));
+        if (exactVideoHit.context) {
+          systemPrompt += `\n\n🎬 RESSOURCE VIDÉO DEMANDÉE PAR TITRE — CONTEXTE APPROUVÉ\n${exactVideoHit.context}`;
+        }
+        if (!videoProtocolAdded) {
+          systemPrompt += LIVING_VIDEO_TRAINING_PROTOCOL;
+          videoProtocolAdded = true;
+        }
+      }
+    } catch (_) { /* la conversation continue sans bloquer */ }
   }
 
   if (explicitRequestedTeachingVideo && explicitRequestedTeachingVideo.url) {
@@ -4371,6 +4512,7 @@ Tu peux donner une courte mission d'observation adaptée, puis afficher la vidé
   }
 
   content = sanitizeLivingVideoMarkers(content, approvedLivingVideoUrls);
+  content = hideRawApprovedVideoLinksWhenPlayerExists(content, approvedLivingVideoUrls);
   content = stripVideoPlayerContradictions(content);
   content = sanitizeApprovedMediaMarkers(content, 'AUDIO', approvedLivingAudioUrls, 3);
   content = sanitizeApprovedMediaMarkers(content, 'PHOTO', approvedLivingImageUrls, 3);
