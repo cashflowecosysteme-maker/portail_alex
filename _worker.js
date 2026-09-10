@@ -1451,6 +1451,20 @@ function extractApprovedLivingVideoUrls(brainContext) {
   // Nouveau format simple pour les .md de Diane :
   // 🎬 VIDÉO : LE LAURÉAT
   // URL : https://drive.google.com/file/d/.../view?usp=drive_link
+  //
+  // IMPORTANT : certains convertisseurs PDF → MD aplatissent le texte et produisent plutôt :
+  // "... 🎬 VIDÉO : LE LAURÉAT URL : https://drive.google.com/..."
+  // On cherche donc le marqueur VIDÉO N'IMPORTE OÙ dans le passage, puis une URL étiquetée
+  // URL/ADRESSE dans une courte fenêtre. Aucun titre de leçon n'est codé dans le Worker.
+  const videoMarkerRegex = /(?:🎬\s*)?VID(?:É|E)O\s*:/giu;
+  let markerMatch;
+  while ((markerMatch = videoMarkerRegex.exec(source)) !== null) {
+    const nearby = source.slice(markerMatch.index, markerMatch.index + 500);
+    const nearbyUrl = nearby.match(/\b(?:URL|ADRESSE)\s*:\s*(https:\/\/[^\s<>"'\[\]]+)/iu);
+    if (nearbyUrl) add(nearbyUrl[1]);
+  }
+
+  // On conserve aussi le lecteur ligne-par-ligne pour les MD propres avec URL sur la ligne suivante.
   // On accepte jusqu'à 3 lignes intermédiaires pour tolérer une NOTE courte sans attraper une URL lointaine.
   const lines = source.split(/\r?\n/);
   let videoWindow = 0;
