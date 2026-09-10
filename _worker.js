@@ -1794,8 +1794,8 @@ function hideRawApprovedVideoLinksWhenPlayerExists(content, approvedUrls) {
   for (const approved of allowed) {
     const escaped = approved.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     text = text
-      .replace(new RegExp(`\[[^\]]*\]\(${escaped}\)`, 'giu'), '')
-      .replace(new RegExp(`(?:URL|LIEN|ADRESSE)\s*:\s*${escaped}`, 'giu'), '')
+      .replace(new RegExp(`\\[[^\\]]*\\]\\(${escaped}\\)`, 'giu'), '')
+      .replace(new RegExp(`(?:URL|LIEN|ADRESSE)\\s*:\\s*${escaped}`, 'giu'), '')
       .replace(new RegExp(escaped, 'giu'), '');
   }
 
@@ -1823,13 +1823,13 @@ function extractApprovedMediaUrls(source, label) {
   }
 
   // Format historique : ADRESSE IMAGE/AUDIO APPROUVÉE : https://...
-  const re = new RegExp(`ADRESSE\s+${label}\s+APPROUV(?:É|E)E\s*:\s*(https:\/\/[^\s<>"'\[\]]+)`, 'giu');
+  const re = new RegExp(`ADRESSE\\s+${label}\\s+APPROUV(?:É|E)E\\s*:\\s*(https:\\/\\/[^\\s<>"'\\[\\]]+)`, 'giu');
   let match;
   while ((match = re.exec(s)) !== null) add(match[1]);
 
   // Format .md simple : 🖼️ IMAGE : titre / 🎧 AUDIO : titre, puis URL : https://...
   const icon = String(label || '').toUpperCase() === 'IMAGE' ? '(?:🖼️|📷|📸)' : '(?:🎧|🔊)';
-  const titleRe = new RegExp(`^(?:${icon}\s*)?${label}\s*:`, 'iu');
+  const titleRe = new RegExp(`^(?:${icon}\\s*)?${label}\\s*:`, 'iu');
   const lines = s.split(/\r?\n/);
   let mediaWindow = 0;
   for (const rawLine of lines) {
