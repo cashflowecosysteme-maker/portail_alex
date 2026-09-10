@@ -1039,6 +1039,8 @@
   function cleanMarkdown(str) {
     return str
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:#c4b5fd;text-decoration:underline">$1</a>')
+      // Filet de sécurité : une URL brute reste cliquable si un média n'a pas été transformé en player.
+      .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener" style="color:#c4b5fd;text-decoration:underline;overflow-wrap:anywhere">$2</a>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '$1')
       .replace(/^---+$/gm, '')
