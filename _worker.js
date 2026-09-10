@@ -1475,16 +1475,51 @@ function extractApprovedLivingVideoUrls(brainContext) {
 }
 
 function sanitizeLivingVideoMarkers(content, approvedUrls) {
-  const allowed = new Set((approvedUrls || []).map(normalizeApprovedVideoUrl).filter(Boolean));
+  const allowed = Array.from(new Set((approvedUrls || []).map(normalizeApprovedVideoUrl).filter(Boolean)));
+  const allowedSet = new Set(allowed);
   let videoAlreadyUsed = false;
+  let safe = String(content || '');
 
-  return String(content || '')
-    .replace(/\[VIDEO\s*:\s*([^\]\r\n]+)\]/giu, (_marker, rawUrl) => {
-      const normalized = normalizeApprovedVideoUrl(rawUrl);
-      if (!normalized || !allowed.has(normalized) || videoAlreadyUsed) return '';
+  // 1) Cas idéal : le modèle a suivi le protocole et a renvoyé [VIDEO: ...].
+  safe = safe.replace(/\[VIDEO\s*:\s*([^\]\r\n]+)\]/giu, (_marker, rawUrl) => {
+    const normalized = normalizeApprovedVideoUrl(rawUrl);
+    if (!normalized || !allowedSet.has(normalized) || videoAlreadyUsed) return '';
+    videoAlreadyUsed = true;
+    return `[VIDEO: ${normalized}]`;
+  });
+
+  // 2) Filet de sécurité : certains modèles recopient l'URL approuvée au lieu du marqueur.
+  // Le Worker la transforme lui-même en player, mais UNIQUEMENT si l'URL exacte vient du
+  // contexte Vectorize approuvé. Aucune URL inventée ou modifiée n'est acceptée.
+  if (!videoAlreadyUsed && allowed.length) {
+    for (const approved of allowed) {
+      if (!approved || !safe.includes(approved)) continue;
+      const escaped = approved.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      // URL présentée comme lien Markdown : [Voir la vidéo](https://...)
+      const markdownLink = new RegExp(`\\[([^\\]]+)\\]\\(${escaped}\\)`, 'iu');
+      if (markdownLink.test(safe)) {
+        safe = safe.replace(markdownLink, (_m, label) => `${label}\n[VIDEO: ${approved}]`);
+        videoAlreadyUsed = true;
+        break;
+      }
+
+      // Format le plus fréquent dans les réponses : URL : https://...
+      const labelledLine = new RegExp(`(^|\\n)[ \\t]*(?:URL|LIEN|ADRESSE)[ \\t]*:[ \\t]*${escaped}[ \\t]*(?=\\n|$)`, 'iu');
+      if (labelledLine.test(safe)) {
+        safe = safe.replace(labelledLine, (_m, prefix) => `${prefix}[VIDEO: ${approved}]`);
+        videoAlreadyUsed = true;
+        break;
+      }
+
+      // Dernier recours : l'URL approuvée apparaît seule dans le texte.
+      safe = safe.replace(approved, `[VIDEO: ${approved}]`);
       videoAlreadyUsed = true;
-      return `[VIDEO: ${normalized}]`;
-    })
+      break;
+    }
+  }
+
+  return safe
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
