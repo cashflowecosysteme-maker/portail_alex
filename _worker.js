@@ -1244,23 +1244,42 @@ const ACTIVE_AGENTS = new Set([
 // elle doit provenir d'un passage « Formation vivante vidéo » retrouvé dans Vectorize.
 const LIVING_VIDEO_TRAINING_PROTOCOL = `
 
-🎬 FORMATION VIVANTE VIDÉO — PROTOCOLE UNIVERSEL
+🎬 RESSOURCE VIDÉO PÉDAGOGIQUE — PROTOCOLE UNIVERSEL
 
-Le contexte retrouvé contient une leçon vidéo approuvée par Diane. Tu peux l'intégrer à ta réponse UNIQUEMENT si elle répond directement à la demande actuelle ou constitue la prochaine petite étape logique de l'accompagnement.
+Le contexte retrouvé contient au moins une vidéo choisie par Diane comme ressource pédagogique. Une ressource vidéo est considérée approuvée lorsqu'elle apparaît dans le contexte sous l'une de ces formes :
+- « ADRESSE VIDÉO APPROUVÉE : https://... » ;
+- ou un petit bloc de document tel que « 🎬 VIDÉO : TITRE » suivi de « URL : https://... ».
+
+Tu peux intégrer UNE vidéo seulement si elle répond directement à la demande actuelle ou constitue la prochaine petite étape logique de l'apprentissage.
 
 RÈGLES ABSOLUES :
-- Utilise seulement une adresse indiquée exactement après « ADRESSE VIDÉO APPROUVÉE » dans le contexte retrouvé.
-- N'invente, ne corrige, ne raccourcis et ne remplace jamais cette adresse.
+- Utilise uniquement une adresse https réellement présente dans le contexte retrouvé et reconnue comme ressource vidéo. N'invente, ne corrige, ne raccourcis et ne remplace jamais cette adresse.
 - Une seule vidéo au maximum par réponse.
-- Introduis-la naturellement en une ou deux phrases courtes, dans la voix de ton personnage.
-- Pour afficher la vidéo dans le portail, place ce marqueur exact sur sa propre ligne :
+- Ne révèle pas le nom du fichier ou de la leçon privée d'où vient la ressource. Tu peux naturellement nommer l'œuvre ou le titre de la vidéo lorsque ce titre apparaît dans le contexte.
+- Pour afficher le player vidéo dans le portail, place ce marqueur exact sur sa propre ligne :
 
 [VIDEO: adresse_https_approuvée]
 
-- Le marqueur doit rester intact. Ne le mets pas dans un bloc de code et ne l'explique jamais au Membre.
-- Après la vidéo, utilise la question d'intégration de la leçon si elle est pertinente, une seule question à la fois.
-- Si la vidéo n'est pas réellement utile maintenant, continue l'accompagnement sans l'afficher.
-- Si aucune adresse approuvée n'est présente, n'affiche aucune vidéo.`;
+- Le marqueur doit rester intact. Ne le mets jamais dans un bloc de code et ne l'explique jamais à l'étudiant.
+
+🎯 MISSION ADAPTATIVE — IMPORTANT
+La mission n'a PAS besoin d'être écrite dans le document de Diane. Tu la construis toi-même à partir de :
+1. la notion enseignée dans le passage qui entoure la vidéo ;
+2. ce que l'étudiant demande ou travaille maintenant ;
+3. sa progression pédagogique si elle t'est fournie ;
+4. son manuscrit ou sa Bible Vivante si des éléments pertinents te sont fournis ;
+5. ta spécialité propre si tu es Alex, Diane ou l'une des professeures spécialisées.
+
+Quand tu utilises une vidéo :
+- présente très brièvement POURQUOI elle est utile maintenant ;
+- donne une section courte « 🎯 Mission d'observation » AVANT le player, avec 1 à 3 choses précises à observer ;
+- ne donne pas d'avance la réponse que l'étudiant doit découvrir ;
+- affiche ensuite le marqueur [VIDEO: ...] ;
+- invite l'étudiant à revenir avec UNE observation afin de l'appliquer ensuite à son propre roman.
+
+La même vidéo peut donc produire des missions différentes selon l'étudiant et le professeur. Par exemple, une spécialiste du drame peut observer le rapport de force alors qu'Alex peut faire observer la fonction narrative de la même scène.
+
+Si la vidéo n'est pas réellement utile maintenant, continue l'accompagnement sans l'afficher. Si aucune adresse vidéo approuvée n'est présente, n'affiche aucune vidéo.`;
 
 // Protocole audio — jumeau du protocole vidéo. Un MP3 n'est jamais choisi au hasard :
 // il provient d'un bloc « ADRESSE AUDIO APPROUVÉE » présent dans le contexte (Vectorize ou module de formation).
@@ -1395,14 +1414,40 @@ function extractApprovedLivingVideoUrls(brainContext) {
   const urls = [];
   const seen = new Set();
   const source = String(brainContext || '');
-  const approvedUrlRegex = /ADRESSE\s+VID(?:É|E)O\s+APPROUV(?:É|E)E\s*:\s*(https:\/\/[^\s<>"'\[\]]+)/giu;
-  let match;
 
-  while ((match = approvedUrlRegex.exec(source)) !== null) {
-    const normalized = normalizeApprovedVideoUrl(match[1]);
+  function add(raw) {
+    const normalized = normalizeApprovedVideoUrl(raw);
     if (normalized && !seen.has(normalized)) {
       seen.add(normalized);
       urls.push(normalized);
+    }
+  }
+
+  // Format historique : ADRESSE VIDÉO APPROUVÉE : https://...
+  const approvedUrlRegex = /ADRESSE\s+VID(?:É|E)O\s+APPROUV(?:É|E)E\s*:\s*(https:\/\/[^\s<>"'\[\]]+)/giu;
+  let match;
+  while ((match = approvedUrlRegex.exec(source)) !== null) add(match[1]);
+
+  // Nouveau format simple pour les .md de Diane :
+  // 🎬 VIDÉO : LE LAURÉAT
+  // URL : https://drive.google.com/file/d/.../view?usp=drive_link
+  // On accepte jusqu'à 3 lignes intermédiaires pour tolérer une NOTE courte sans attraper une URL lointaine.
+  const lines = source.split(/\r?\n/);
+  let videoWindow = 0;
+  for (const rawLine of lines) {
+    const line = String(rawLine || '').trim();
+    if (/^(?:🎬\s*)?VID(?:É|E)O\s*:/iu.test(line)) {
+      videoWindow = 4;
+      continue;
+    }
+    if (videoWindow > 0) {
+      const urlMatch = line.match(/^(?:URL|ADRESSE)\s*:\s*(https:\/\/[^\s<>"'\[\]]+)/iu);
+      if (urlMatch) {
+        add(urlMatch[1]);
+        videoWindow = 0;
+        continue;
+      }
+      videoWindow--;
     }
   }
 
@@ -1429,15 +1474,42 @@ function extractApprovedMediaUrls(source, label) {
   const urls = [];
   const seen = new Set();
   const s = String(source || '');
-  const re = new RegExp(`ADRESSE\\s+${label}\\s+APPROUV(?:É|E)E\\s*:\\s*(https:\\/\\/[^\\s<>"'\\[\\]]+)`, 'giu');
-  let match;
-  while ((match = re.exec(s)) !== null) {
-    const normalized = normalizeApprovedVideoUrl(match[1]);
+
+  function add(raw) {
+    const normalized = normalizeApprovedVideoUrl(raw);
     if (normalized && !seen.has(normalized)) {
       seen.add(normalized);
       urls.push(normalized);
     }
   }
+
+  // Format historique : ADRESSE IMAGE/AUDIO APPROUVÉE : https://...
+  const re = new RegExp(`ADRESSE\s+${label}\s+APPROUV(?:É|E)E\s*:\s*(https:\/\/[^\s<>"'\[\]]+)`, 'giu');
+  let match;
+  while ((match = re.exec(s)) !== null) add(match[1]);
+
+  // Format .md simple : 🖼️ IMAGE : titre / 🎧 AUDIO : titre, puis URL : https://...
+  const icon = String(label || '').toUpperCase() === 'IMAGE' ? '(?:🖼️|📷|📸)' : '(?:🎧|🔊)';
+  const titleRe = new RegExp(`^(?:${icon}\s*)?${label}\s*:`, 'iu');
+  const lines = s.split(/\r?\n/);
+  let mediaWindow = 0;
+  for (const rawLine of lines) {
+    const line = String(rawLine || '').trim();
+    if (titleRe.test(line)) {
+      mediaWindow = 4;
+      continue;
+    }
+    if (mediaWindow > 0) {
+      const urlMatch = line.match(/^(?:URL|ADRESSE)\s*:\s*(https:\/\/[^\s<>"'\[\]]+)/iu);
+      if (urlMatch) {
+        add(urlMatch[1]);
+        mediaWindow = 0;
+        continue;
+      }
+      mediaWindow--;
+    }
+  }
+
   return urls;
 }
 
