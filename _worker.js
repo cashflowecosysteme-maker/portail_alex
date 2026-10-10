@@ -3322,12 +3322,24 @@ async function handleCoverImage(request, env, url) {
 }
 
 
+
+// Lecture du catalogue existant, sans modification des produits.
+async function nxDashboardBoutique(){
+ try{
+  const [catalog,config]=await Promise.all([fetch('https://boutique.nyxia.top/api/catalog'),fetch('https://boutique.nyxia.top/api/config')]);
+  if(!catalog.ok)return json({error:'Boutique indisponible.'},502);
+  const data=await catalog.json(),settings=config.ok?await config.json():{};
+  return json({products:Array.isArray(data.products)?data.products:[],settings:settings.settings||{}});
+ }catch(_){return json({error:'Connexion à la Boutique NyXia impossible.'},502)}
+}
+
 export default {
   async fetch(request, env) {
     
     try { if (env.DB) await ensureSchema(env); } catch (e) { console.error("schema", e); }
 const url = new URL(request.url);
     const path = url.pathname;
+    if(path==='/api/nyxia-universe/boutique'&&request.method==='GET')return await nxDashboardBoutique();
     try{const denied=await nxGuard(request,env);if(denied)return denied;}catch(e){return json({error:'Vérification de l’accès indisponible.'},503)}
 
     // La racine reste réservée à index.html : la page de vente du portail Alex.
@@ -6020,4 +6032,5 @@ async function handleTTSCachedAudio(request, env, url) {
 
   return new Response(audio, { status: 200, headers: { 'Content-Type': 'audio/mpeg' } });
 }
+
 
