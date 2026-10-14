@@ -8,6 +8,7 @@ keep_vars = true
 [assets]
 directory = "."
 binding = "ASSETS"
+run_worker_first = ["/", "/index", "/index.html"]
 
 [[routes]]
 pattern = "portailalex.nyxia.top"
