@@ -1,3 +1,4 @@
+function nxModuleHeading(m,index){const title=String(m?.titre||'');const mode=m?.prefixMode||'none';const prefix=mode==='none'?'':mode==='custom'?String(m?.prefixText||''):'Module '+(m?.numero||index+1)+' ·';return[prefix,title].filter(Boolean).join(' ')}
 // Accès NyXia commun : comptes et droits existants conservés.
 const NX_ACCESS_ID='alex',NX_ACCESS_HOST='portailalex.nyxia.top',NX_ACCESS_ALIASES=["alex", "portail_alex", "portail-alex", "alex-devenir-ecrivain"],NX_ACCESS_SESSION_PREFIX='session:';
 const nxNorm=v=>String(v||'').trim().toLowerCase();
@@ -1958,7 +1959,8 @@ function normalizeFormationModules(formation) {
   return mods.map((m, i) => ({
     id: (m && m.id) || `m${i + 1}`,
     numero: Number.isFinite(m && m.numero) ? m.numero : (i + 1),
-    titre: (m && m.titre) || `Module ${i + 1}`,
+    titre: (m && m.titre) ?? '',
+    prefixMode: m?.prefixMode||'none',prefixText: String(m?.prefixText||''),
     blocs: Array.isArray(m && m.blocs) ? m.blocs : []
   }));
 }
@@ -2069,7 +2071,7 @@ function buildFormationMap(formations, progressAll) {
     const mods = normalizeFormationModules(f);
     lines.push(`\n📘 Formation « ${f.titre} » (id: ${f.id})${f.description ? ' — ' + f.description : ''}`);
     if (!mods.length) { lines.push('  (aucun module encore disponible)'); }
-    else { for (const m of mods) lines.push(`  • Module ${m.numero} — ${m.titre}`); }
+    else { for (const m of mods) lines.push(`  • ${nxModuleHeading(m,m.numero-1)}`); }
     const p = progressAll && progressAll[f.id];
     if (p) {
       const done = Array.isArray(p.completed) ? p.completed.length : 0;
@@ -2113,7 +2115,7 @@ function formationBlocToPromptLines(bloc, idx, prenom) {
 function buildActiveModuleInjection(formation, module, prenom) {
   const blocs = Array.isArray(module.blocs) ? module.blocs : [];
   const parts = [
-    `🎯 MODULE ACTIF — Formation « ${formation.titre} » · Module ${module.numero} : ${module.titre}`,
+    `🎯 MODULE ACTIF — Formation « ${formation.titre} » · ${nxModuleHeading(module,module.numero-1)}`,
     `Voici le contenu réel de ce module, dans l'ordre. Fais-le vivre UN BLOC À LA FOIS (jamais tout d'un coup), vérifie la compréhension entre chaque, et aide la personne à appliquer à SON livre. Pour un bloc média, copie l'adresse EXACTE après « ADRESSE … APPROUVÉE » dans le marqueur correspondant.`
   ];
   blocs.forEach((b, i) => parts.push('\n' + formationBlocToPromptLines(b, i, prenom)));
@@ -2244,7 +2246,7 @@ async function runFormationControlTurn(env, session, agent, message, requestedId
   if (ctrl.action === 'module') {
     const mi = idxByNumero(ctrl.moduleNumero);
     if (mi == null) {
-      const list = modules.map(mm => `• Module ${mm.numero} — ${mm.titre}`).join('\n');
+      const list = modules.map(mm => `• ${nxModuleHeading(mm,mm.numero-1)}`).join('\n');
       return { content: `Le module ${ctrl.moduleNumero} n'existe pas encore dans « ${formation.titre} » 💜\n\nVoici les modules disponibles :\n${list}\n\nDis-moi lequel tu veux ouvrir.` };
     }
     moduleIdx = mi; blocIdx = 0;
@@ -2280,7 +2282,7 @@ async function runFormationControlTurn(env, session, agent, message, requestedId
 
   const module = modules[moduleIdx];
   if (!module.blocs.length) {
-    const list = modules.map(mm => `• Module ${mm.numero} — ${mm.titre}`).join('\n');
+    const list = modules.map(mm => `• ${nxModuleHeading(mm,mm.numero-1)}`).join('\n');
     return { content: `Le module ${module.numero} n'a pas encore de contenu 💜\n\nModules disponibles :\n${list}` };
   }
   if (blocIdx > module.blocs.length - 1) blocIdx = module.blocs.length - 1;
@@ -6236,3 +6238,4 @@ async function nxFormationFlowApi(request,env,ctx){
  result.content=String(result.content||'').replace(/\n\n— [^\n]*(?:[«“]suite[»”]|dis [«“]suite[»”])[^\n]*\s*$/i,'');
  return json({...result,formationId:result.formationId||selected.id});
 }
+
