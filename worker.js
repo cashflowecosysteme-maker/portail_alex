@@ -2403,7 +2403,9 @@ async function handleHelpdesk(request, env) {
       body: JSON.stringify({
         model,
         messages,
-        max_tokens: 1200,
+        max_tokens: 32000,
+        temperature: 0.85,
+        top_p: 0.95
         reasoning: { enabled: false }
       })
     });
