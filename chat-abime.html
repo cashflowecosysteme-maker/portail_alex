@@ -460,7 +460,8 @@
 
 
   function useSuggestion(btn) {
-    var text = (btn.textContent || '').trim()
+    var item=nxSuggestionValue(btn.getAttribute('data-nyxia-message')||btn.textContent||'')
+    var text = item ? item.message : ''
     if (!text) return
     var input = document.getElementById('chat-input')
     if (input) { input.value = text; input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 120) + 'px' }
@@ -651,11 +652,7 @@
         if(name&&Object.prototype.hasOwnProperty.call(p,'name'))name.textContent=p.name
         if(sub&&Object.prototype.hasOwnProperty.call(p,'sub'))sub.textContent=p.sub
         if(typeof updateHeaderAvatar==='function')updateHeaderAvatar(_currentAgent)
-        if(typeof renderAgentSuggestions==='function')renderAgentSuggestions()
-        else if(Array.isArray(p.suggestions)){
-          var suggestions=document.getElementById('suggestions')
-          if(suggestions){suggestions.innerHTML='';p.suggestions.slice(0,4).forEach(function(item){var button=document.createElement('button');button.type='button';button.className='sug-chip';button.textContent=typeof item==='string'?item:String(item.label||item.message||'');button.onclick=function(){if(typeof useSuggestion==='function')useSuggestion(button);else sendMessageText(typeof item==='string'?item:(item.message||item.label||''),false,{})};suggestions.appendChild(button)})}
-        }
+        if(Array.isArray(p.suggestions))nxRenderConfiguredSuggestions(p.suggestions)
 
         var greeting=document.querySelector('[data-welcome-text="1"] .msg-bubble')
         if(greeting&&Object.prototype.hasOwnProperty.call(p,'greeting')){var welcome=greeting.closest('[data-welcome-text="1"]');if(welcome)welcome.remove();addWelcomeTextMessage(_currentAgent)}
@@ -1240,6 +1237,28 @@
     btn.title = 'Parler'
   }
 
+
+  function nxSuggestionValue(item) {
+    if(typeof item==='string'&&item.trim().indexOf('@NYXIA_TRIGGER:')===0){
+      try{item=JSON.parse(item.trim().slice('@NYXIA_TRIGGER:'.length))}catch(_){return null}
+    }
+    if(typeof item==='string')return {label:item,message:item};
+    if(!item||typeof item!=='object')return null;
+    var action=item.a||item.action||'chat';
+    if(action!=='chat')return null;
+    var label=String(item.l||item.label||item.message||'').trim();
+    var message=String(item.m||item.message||label).trim();
+    return label&&message?{label:label,message:message}:null;
+  }
+  function nxRenderConfiguredSuggestions(items) {
+    var box=document.getElementById('suggestions');if(!box)return;
+    box.innerHTML='';
+    items.forEach(function(raw){var item=nxSuggestionValue(raw);if(!item)return;
+      var button=document.createElement('button');button.type='button';button.className='sug-chip';button.textContent=item.label;
+      button.setAttribute('data-nyxia-message',item.message);
+      button.onclick=function(){useSuggestion(button)};box.appendChild(button);
+    });
+  }
 
   function nxSplitTriggers(value) {
     var triggers=[];
