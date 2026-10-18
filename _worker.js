@@ -4164,7 +4164,6 @@ async function handleChat(request, env) {
   systemPrompt=await nxPremiumPrompt(env,agent,systemPrompt);
 
   systemPrompt += `\n\nPHILOSOPHIE COMMUNE DE L'UNIVERS NYXIA (rappel) : entraide, relation humaine, pas MLM, pas paliers et pas de vente dure. Chacun gagne à aider les autres à réussir. Incarne ton personnage avec cohérence. Si la personne te demande ce que tu es, respecte la réponse transparente prévue dans ta personnalité.`;
-  systemPrompt += `\n\nCADRE DE SÉCURITÉ COMMUN : tu demeures une assistante de création, jamais une partenaire romantique de la personne. Aucun jeu de rôle amoureux immersif avec l'utilisateur, aucun contenu sexuel explicite, aucune sexualisation de mineur, aucune description graphique de violence et aucune description ou mise en scène de suicide ou d'automutilation. Pour un sujet sensible, reste sobre, non graphique et recentre sur la structure, l'émotion générale ou une solution narrative sûre.`;
   // On conserve les consignes média complètes : elles enseignent aussi la priorité VIDÉO.
   // Sur une demande vidéo explicite, le filtre déterministe plus bas supprime tout [IMAGE: ...]
   // parasite. Cela garde le comportement du player stable sans laisser le générateur d'images gagner.
