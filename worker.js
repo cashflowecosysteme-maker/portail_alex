@@ -1226,7 +1226,7 @@ Puis construis une seule règle, un seul élément ou une seule décision à la 
 
 
 
-const OPENROUTER_MODEL = 'deepseek/deepseek-chat';
+const OPENROUTER_MODEL = 'nousresearch/hermes-3-llama-3.1-405b';
 const OPENROUTER_FALLBACK_MODEL = 'mistralai/mistral-small-3.2-24b-instruct';
 const SESSION_TTL = 60 * 60 * 24 * 7;   // 7 jours
 const ADMIN_SESSION_TTL = 60 * 60 * 12; // 12 heures
